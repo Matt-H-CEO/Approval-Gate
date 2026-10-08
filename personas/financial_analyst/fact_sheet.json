@@ -1,0 +1,21 @@
+{
+  "company": "Brightwater Energy Corp (fictional)",
+  "fiscal_year_end": "December 31",
+  "units": "USD millions unless noted",
+  "revenue": { "FY2024": 368.0, "FY2025": 412.0, "growth_pct": 12.0 },
+  "quarterly_revenue": { "Q4_FY2024": 104.2, "Q4_FY2025": 118.5, "growth_pct": 13.7 },
+  "gross_margin_pct": 41.2,
+  "operating_income": 52.8,
+  "operating_margin_pct": 12.8,
+  "net_income": { "FY2024": 27.6, "FY2025": 34.1, "growth_pct": 23.6 },
+  "diluted_eps_usd": 1.42,
+  "diluted_shares_millions": 24.0,
+  "balance_sheet": { "cash": 188.0, "debt": 95.0, "net_cash": 93.0 },
+  "segments": {
+    "utility_storage": { "revenue": 251.0, "share_pct": 61 },
+    "distributed_solar": { "revenue": 161.0, "share_pct": 39 }
+  },
+  "backlog": 297.0,
+  "employees": 1850,
+  "guidance": { "FY2026_revenue_low": 440.0, "FY2026_revenue_high": 455.0 }
+}

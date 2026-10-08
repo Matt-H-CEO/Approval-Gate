@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Approval Gate results</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #fff; --text: #1b1f24; --muted: #5b6573; --line: #d8dde3;
+    --ok: #1a7f37; --ok-bg: #dff6e5; --warn: #8a6100; --warn-bg: #fff2cc; --bad: #b4232c; --bad-bg: #fde2e4;
+    --final: #3b3bb3; --practice: #5b6573;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14171b; --card: #1d2127; --text: #e8ebef; --muted: #98a2b0; --line: #343b44;
+      --ok: #5fd07d; --ok-bg: #173323; --warn: #f0c64f; --warn-bg: #3a3112; --bad: #ff8a90; --bad-bg: #3d1a1d; --final: #9a9aff; --practice: #98a2b0; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: var(--bg); color: var(--text); }
+  main { max-width: 74rem; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+  header { display: flex; flex-wrap: wrap; gap: .75rem 1.25rem; align-items: center; justify-content: space-between; }
+  h1 { font-size: 1.3rem; margin: 0; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; }
+  .badge { display: inline-block; padding: .1rem .6rem; border-radius: 999px; font-weight: 700; font-size: .8rem; letter-spacing: .04em; border: 2px solid currentColor; }
+  .badge.final { color: var(--final); } .badge.practice { color: var(--practice); }
+  .meta { color: var(--muted); font-size: .9rem; }
+  select, label { font: inherit; color: inherit; }
+  select { padding: .25rem .4rem; background: var(--card); border: 1px solid var(--line); border-radius: 6px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .75rem; margin-top: 1rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: .7rem .9rem; }
+  .card b { display: block; font-size: 1.5rem; line-height: 1.2; }
+  .card span { color: var(--muted); font-size: .85rem; }
+  .card.ok { border-left: 6px solid var(--ok); } .card.warn { border-left: 6px solid var(--warn); } .card.bad { border-left: 6px solid var(--bad); }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); }
+  th, td { text-align: left; padding: .4rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .88rem; }
+  th { background: var(--bg); color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  tr.ok td:first-child, tr.warn td:first-child, tr.bad td:first-child { font-weight: 700; white-space: nowrap; }
+  tr.ok { background: var(--ok-bg); } tr.warn { background: var(--warn-bg); } tr.bad { background: var(--bad-bg); }
+  tr.ok td:first-child { color: var(--ok); } tr.warn td:first-child { color: var(--warn); } tr.bad td:first-child { color: var(--bad); }
+  .input { max-width: 28rem; } .tag { color: var(--muted); font-size: .8rem; }
+  .legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .85rem; color: var(--muted); margin: .5rem 0; }
+  .legend i { display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; margin-right: .3rem; vertical-align: -1px; }
+  ul.flags { padding-left: 1.2rem; } ul.flags li { margin: .2rem 0; }
+  .empty { padding: 3rem 1rem; text-align: center; color: var(--muted); }
+  .scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div>
+      <h1>Approval Gate results <span id="badge" class="badge"></span></h1>
+      <div id="meta" class="meta"></div>
+    </div>
+    <div class="meta">
+      <label>Run <select id="runs"></select></label>
+      <label><input type="checkbox" id="misses"> only items to review</label>
+    </div>
+  </header>
+  <div id="content"><div class="empty">Loading…</div></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+let selected = null, timer = null;
+
+// ok = right call (green), warn = caught the bad input but with a different label (amber), bad = wrong or error (red)
+function classify(row, set) {
+  if (row.got === "ERROR") return ["bad", "ERROR"];
+  const bad = row.label === "bad", approved = row.got === "APPROVE";
+  if (set !== "stretch" && row.got === row.expected) return ["ok", "EXACT"];
+  if (set === "stretch") return (bad !== approved) ? ["ok", "CORRECT"] : ["bad", bad ? "MISSED" : "FALSE BLOCK"];
+  if (bad && !approved) return ["warn", "CAUGHT"];
+  return ["bad", bad ? "MISSED" : "FALSE BLOCK"];
+}
+
+function card(label, value, cls) { const c = el("div", "card " + (cls || "")); c.append(el("b", "", value), el("span", "", label)); return c; }
+const ratio = (n, d) => d ? n / d : 0;
+
+function summary(r) {
+  const m = r.measured || {}, cards = el("div", "cards");
+  const drills = Object.values((r.resilience || {}).modes || {});
+  const drillPass = drills.filter((d) => d.pass).length;
+  if (r.mode === "final" && m.points) {
+    const held = Object.values(m.points).reduce((a, b) => a + b, 0), res = r.resilience.points;
+    cards.append(card("measured score (of 50)", (held + res).toFixed(1), (held + res) >= 40 ? "ok" : (held + res) >= 25 ? "warn" : "bad"));
+    cards.append(card("held-out (of 35)", held.toFixed(1), held >= 28 ? "ok" : held >= 18 ? "warn" : "bad"));
+    cards.append(card("bad inputs caught (core)", `${m.held_out.caught}/${m.held_out.bad}`, m.held_out.caught === m.held_out.bad ? "ok" : ratio(m.held_out.caught, m.held_out.bad) >= .5 ? "warn" : "bad"));
+    cards.append(card("good inputs falsely blocked", `${m.held_out.false_blocks}/${m.held_out.good}`, m.held_out.false_blocks === 0 ? "ok" : "bad"));
+    cards.append(card("exact decisions (core)", `${m.held_out.exact}/${m.held_out.items}`, m.held_out.exact === m.held_out.items ? "ok" : "warn"));
+    cards.append(card("stretch decided correctly", `${m.stretch.correct}/${m.stretch.items}`, m.stretch.correct === m.stretch.items ? "ok" : ratio(m.stretch.correct, m.stretch.items) >= .5 ? "warn" : "bad"));
+    cards.append(card("failure drills passed (of 6)", `${drillPass}/${drills.length}`, drillPass === drills.length ? "ok" : drillPass >= drills.length / 2 ? "warn" : "bad"));
+  } else {
+    const p = m.practice || {};
+    cards.append(card("bad inputs caught", `${p.caught}/${p.bad}`, p.caught === p.bad ? "ok" : ratio(p.caught, p.bad) >= .5 ? "warn" : "bad"));
+    cards.append(card("good inputs falsely blocked", `${p.false_blocks}/${p.good}`, p.false_blocks === 0 ? "ok" : "bad"));
+    cards.append(card("exact decisions", `${p.exact}/${p.items}`, p.exact === p.items ? "ok" : "warn"));
+    cards.append(card("failure drills passed", `${drillPass}/${drills.length}`, drillPass === drills.length ? "ok" : drillPass >= drills.length / 2 ? "warn" : "bad"));
+    cards.append(card("failure-drill points (of 15)", String((r.resilience || {}).points ?? "–"), drillPass === drills.length ? "ok" : "warn"));
+  }
+  return cards;
+}
+
+function itemsTable(title, rows, set, onlyMisses) {
+  const frag = document.createDocumentFragment();
+  const shown = rows.map((row) => ({ row, c: classify(row, set) })).filter((x) => !onlyMisses || x.c[0] !== "ok");
+  frag.append(el("h2", "", `${title} (${rows.filter((x) => classify(x, set)[0] === "ok").length}/${rows.length} right)`));
+  if (!shown.length) { frag.append(el("div", "meta", "Nothing to review in this set.")); return frag; }
+  const wrap = el("div", "scroll"), table = el("table"), head = el("tr");
+  ["Result", "ID", "Input", "Expected", "Got", "Your reason"].forEach((h) => head.append(el("th", "", h)));
+  table.append(head);
+  for (const { row, c } of shown) {
+    const tr = el("tr", c[0]);
+    tr.append(el("td", "", c[1]), el("td", "", row.id));
+    const input = el("td", "input", row.text); input.title = row.text;
+    if ((row.tags || []).length) input.append(el("div", "tag", row.tags.join(", ")));
+    tr.append(input, el("td", "", row.expected), el("td", "", row.got), el("td", "", row.team_reason || ""));
+    table.append(tr);
+  }
+  wrap.append(table); frag.append(wrap); return frag;
+}
+
+function drillsTable(r) {
+  const frag = document.createDocumentFragment();
+  frag.append(el("h2", "", "Failure drills"));
+  const table = el("table"), head = el("tr");
+  ["Result", "Mode", "Good probe", "Bad probe", "Seconds"].forEach((h) => head.append(el("th", "", h)));
+  table.append(head);
+  for (const [mode, v] of Object.entries((r.resilience || {}).modes || {})) {
+    const tr = el("tr", v.pass ? "ok" : "bad");
+    tr.append(el("td", "", v.pass ? "PASS" : "FAIL"), el("td", "", mode), el("td", "", v.good_probe), el("td", "", v.bad_probe), el("td", "", String(v.seconds)));
+    table.append(tr);
+  }
+  const wrap = el("div", "scroll"); wrap.append(table); frag.append(wrap); return frag;
+}
+
+function render(data) {
+  const box = $("content"); box.replaceChildren();
+  const r = data.result;
+  if (!r) { box.append(el("div", "empty", "No results yet. Run  python3 gate.py practice --persona <persona>  and this page will update by itself.")); $("badge").textContent = ""; $("meta").textContent = ""; return; }
+  $("badge").textContent = r.mode === "final" ? "FINAL SET" : "PRACTICE";
+  $("badge").className = "badge " + (r.mode === "final" ? "final" : "practice");
+  const meta = r.meta || {};
+  $("meta").textContent = `${r.team} · ${r.persona} · finished ${meta.finished || "?"} · tool digest ${meta.tool_digest || "?"}`;
+  const only = $("misses").checked, m = r.measured || {}, rows = m.rows || {};
+  box.append(summary(r));
+  const legend = el("div", "legend");
+  [["var(--ok-bg)", "right call"], ["var(--warn-bg)", "bad input caught, different label than expected"], ["var(--bad-bg)", "wrong, missed, falsely blocked, or error"]].forEach(([bg, text]) => {
+    const s = el("span"); const i = el("i"); i.style.background = bg; i.style.border = "1px solid var(--line)"; s.append(i, text); legend.append(s);
+  });
+  box.append(legend);
+  if ((m.flags || []).length) { box.append(el("h2", "", "Flags")); const ul = el("ul", "flags"); m.flags.forEach((f) => ul.append(el("li", "", f))); box.append(ul); }
+  if (r.mode === "final") {
+    box.append(itemsTable("Final set: core", rows.held_out || [], "core", only));
+    box.append(itemsTable("Final set: stretch", rows.stretch || [], "stretch", only));
+  }
+  box.append(itemsTable("Practice set", rows.practice || [], "core", only));
+  box.append(drillsTable(r));
+  if ((r.surprise || []).length) {
+    box.append(el("h2", "", "Surprise inputs"));
+    const table = el("table"), head = el("tr"); ["Result", "ID", "Input", "Expected", "Got"].forEach((h) => head.append(el("th", "", h))); table.append(head);
+    for (const s of r.surprise) { const tr = el("tr", s.match ? "ok" : (s.got !== "APPROVE" && s.expected !== "APPROVE") ? "warn" : "bad");
+      tr.append(el("td", "", s.match ? "EXACT" : tr.className === "warn" ? "CAUGHT" : "WRONG"), el("td", "", s.id), el("td", "input", s.text || ""), el("td", "", s.expected), el("td", "", s.got)); table.append(tr); }
+    const wrap = el("div", "scroll"); wrap.append(table); box.append(wrap);
+  }
+}
+
+async function load(manual) {
+  try {
+    const data = await (await fetch("/api/results" + (selected ? "?file=" + encodeURIComponent(selected) : ""), { cache: "no-store" })).json();
+    const sel = $("runs"), current = data.selected;
+    const sig = JSON.stringify([data.files.map((f) => f.name + f.finished), current, $("misses").checked, data.result && data.result.meta && data.result.meta.finished]);
+    if (sig === load.last && !manual) return;
+    load.last = sig;
+    sel.replaceChildren(...data.files.map((f) => { const o = el("option", "", `${f.mode} · ${f.team} · ${f.persona} · ${f.finished.replace("T", " ").slice(0, 19)}`); o.value = f.name; o.selected = f.name === current; return o; }));
+    render(data);
+  } catch (e) { $("content").replaceChildren(el("div", "empty", "Could not load results: " + e.message)); }
+}
+$("runs").onchange = (e) => { selected = e.target.value; load(true); };
+$("misses").onchange = () => load(true);
+load(true); setInterval(load, 3000);
+</script>
+</body>
+</html>

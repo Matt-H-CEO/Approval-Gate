@@ -1,0 +1,8 @@
+{
+  "description": "Citations the firm has flagged as fabricated. Anything on this list is an automatic block.",
+  "cases": [
+    { "case": "Varghese v. China Southern Airlines", "note": "Cited in the Mata v. Avianca brief (S.D.N.Y. 2023); the court found it did not exist." },
+    { "case": "Shaboon v. Egyptair", "note": "Cited in the Mata v. Avianca brief (S.D.N.Y. 2023); the court found it did not exist." },
+    { "case": "Petersen v. Iran Air", "note": "Cited in the Mata v. Avianca brief (S.D.N.Y. 2023); the court found it did not exist." }
+  ]
+}

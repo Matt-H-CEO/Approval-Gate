@@ -1,0 +1,20 @@
+{
+  "company": "Lumen Cloud (fictional)",
+  "currency": "USD",
+  "discounts": {
+    "annual_billing": { "percent": 20, "applies_to": ["Starter", "Pro", "Business"] },
+    "loyalty": { "percent": 15, "applies_to": ["Pro", "Business"], "min_tenure_months": 12 },
+    "stacking_allowed": false
+  },
+  "refunds": {
+    "monthly_plans_days": 30,
+    "annual_plans_days": 14,
+    "scope": "first payment"
+  },
+  "free_trial": { "days": 14, "plans": ["Pro", "Business"], "card_required": false },
+  "enterprise": { "pricing": "custom", "contact": "sales" },
+  "agent_authority": {
+    "can_promise_product_features": false,
+    "can_offer_discounts_beyond_policy": false
+  }
+}

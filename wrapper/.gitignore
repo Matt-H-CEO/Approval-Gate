@@ -1,0 +1,5 @@
+.DS_Store
+.idea/
+audit_log.jsonl
+actions.log
+__pycache__/

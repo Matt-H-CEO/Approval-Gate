@@ -1,0 +1,25 @@
+{
+  "description": "Cases the firm has verified and approved for use in memos. Holdings are one-line summaries.",
+  "cases": [
+    { "case": "Marbury v. Madison", "citation": "5 U.S. 137", "court": "U.S. Supreme Court", "year": 1803,
+      "holding": "Established judicial review: courts may strike down laws that conflict with the Constitution." },
+    { "case": "Brown v. Board of Education", "citation": "347 U.S. 483", "court": "U.S. Supreme Court", "year": 1954,
+      "holding": "Racial segregation in public schools violates the Equal Protection Clause." },
+    { "case": "Mapp v. Ohio", "citation": "367 U.S. 643", "court": "U.S. Supreme Court", "year": 1961,
+      "holding": "The exclusionary rule applies to the states: evidence from unconstitutional searches is inadmissible." },
+    { "case": "Gideon v. Wainwright", "citation": "372 U.S. 335", "court": "U.S. Supreme Court", "year": 1963,
+      "holding": "States must provide counsel to indigent defendants facing felony charges." },
+    { "case": "New York Times Co. v. Sullivan", "citation": "376 U.S. 254", "court": "U.S. Supreme Court", "year": 1964,
+      "holding": "Public officials suing for defamation must prove actual malice." },
+    { "case": "Miranda v. Arizona", "citation": "384 U.S. 436", "court": "U.S. Supreme Court", "year": 1966,
+      "holding": "Statements from custodial interrogation are inadmissible unless the suspect was first warned of their rights." },
+    { "case": "Terry v. Ohio", "citation": "392 U.S. 1", "court": "U.S. Supreme Court", "year": 1968,
+      "holding": "Police may stop and frisk on reasonable suspicion that a person is armed and involved in crime." },
+    { "case": "Brandenburg v. Ohio", "citation": "395 U.S. 444", "court": "U.S. Supreme Court", "year": 1969,
+      "holding": "Advocacy is protected unless it is directed to inciting imminent lawless action and likely to produce it." },
+    { "case": "Erie Railroad Co. v. Tompkins", "citation": "304 U.S. 64", "court": "U.S. Supreme Court", "year": 1938,
+      "holding": "Federal courts sitting in diversity apply state substantive law." },
+    { "case": "Palsgraf v. Long Island Railroad Co.", "citation": "248 N.Y. 339", "court": "N.Y. Court of Appeals", "year": 1928,
+      "holding": "A defendant's duty of care extends only to foreseeable plaintiffs." }
+  ]
+}

@@ -1,0 +1,10 @@
+.DS_Store
+.idea/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.log
+*.jsonl
+runs/
+results/*.practice.*

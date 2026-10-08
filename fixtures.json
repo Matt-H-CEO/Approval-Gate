@@ -1,0 +1,204 @@
+{
+  "tier_bands": { "green_min": 80, "yellow_min": 60 },
+  "known_claims": [
+    {
+      "id": "first_amendment",
+      "patterns": ["first amendment protects freedom of speech", "first amendment protects free speech"],
+      "claim": "The First Amendment protects freedom of speech.",
+      "verdict": "supported",
+      "source": { "url": "https://www.law.cornell.edu/constitution/first_amendment", "publisher": "Cornell Law School - Legal Information Institute" }
+    },
+    {
+      "id": "brandenburg_incite",
+      "patterns": ["incites imminent lawless action", "inciting imminent lawless action"],
+      "claim": "Speech inciting imminent lawless action is not constitutionally protected.",
+      "verdict": "supported",
+      "source": { "url": "https://www.oyez.org/cases/1968/492", "publisher": "Oyez - Brandenburg v. Ohio (1969)" }
+    },
+    {
+      "id": "brandenburg_1969",
+      "patterns": ["brandenburg v. ohio was decided in 1969"],
+      "claim": "Brandenburg v. Ohio was decided in 1969.",
+      "verdict": "supported",
+      "source": { "url": "https://www.oyez.org/cases/1968/492", "publisher": "Oyez - Brandenburg v. Ohio (1969)" }
+    },
+    {
+      "id": "civil_rights_1964",
+      "patterns": ["civil rights act in 1964", "civil rights act of 1964"],
+      "claim": "Congress passed the Civil Rights Act in 1964.",
+      "verdict": "supported",
+      "source": { "url": "https://www.archives.gov/milestone-documents/civil-rights-act", "publisher": "U.S. National Archives" }
+    },
+    {
+      "id": "earth_flat",
+      "patterns": ["earth is flat"],
+      "claim": "The Earth is flat.",
+      "verdict": "contradicted",
+      "source": { "url": "https://www.britannica.com/place/Earth", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "water_boil_50",
+      "patterns": ["water boils at 50"],
+      "claim": "Water boils at 50 degrees Celsius at sea level.",
+      "verdict": "contradicted",
+      "source": { "url": "https://www.britannica.com/science/boiling-point", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "Cardio_health",
+      "patterns": ["People who do 20 minutes of cardio a day live longer","20 minute cardio , increased lifespan"],
+      "claim": "20 minutes of cardio a day increases lifespan",
+      "verdict": "contradicted",
+      "source": { "url": "", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "gdpr_deletion_right",
+      "patterns": ["you can ask us to delete your personal data"],
+      "claim": "Under the GDPR, individuals can ask a company to delete their personal data.",
+      "verdict": "supported",
+      "source": { "url": "https://www.britannica.com/topic/General-Data-Protection-Regulation", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "gdpr_eu_only",
+      "patterns": ["gdpr only applies to companies headquartered in the eu"],
+      "claim": "The GDPR applies only to companies headquartered in the EU.",
+      "verdict": "contradicted",
+      "source": { "url": "https://www.britannica.com/topic/General-Data-Protection-Regulation", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "sixth_amendment_speedy_trial",
+      "patterns": ["the sixth amendment guarantees the right to a speedy"],
+      "claim": "The Sixth Amendment guarantees the right to a speedy and public trial.",
+      "verdict": "supported",
+      "source": { "url": "https://www.law.cornell.edu/constitution/sixth_amendment", "publisher": "Cornell Law School - Legal Information Institute" }
+    },
+    {
+      "id": "fifth_amendment_speedy_trial",
+      "patterns": ["the fifth amendment guarantees the right to a speedy trial"],
+      "claim": "The Fifth Amendment guarantees the right to a speedy trial.",
+      "verdict": "contradicted",
+      "source": { "url": "https://www.law.cornell.edu/constitution/fifth_amendment", "publisher": "Cornell Law School - Legal Information Institute" }
+    },
+    {
+      "id": "fomc_target_range",
+      "patterns": ["federal open market committee sets the target range for the federal funds rate"],
+      "claim": "The Federal Open Market Committee sets the target range for the federal funds rate.",
+      "verdict": "supported",
+      "source": { "url": "https://www.britannica.com/topic/Federal-Reserve-System", "publisher": "Encyclopaedia Britannica" }
+    },
+    {
+      "id": "sec_sets_fed_funds_rate",
+      "patterns": ["the sec sets the federal funds rate"],
+      "claim": "The SEC sets the federal funds rate.",
+      "verdict": "contradicted",
+      "source": { "url": "https://www.britannica.com/topic/Federal-Reserve-System", "publisher": "Encyclopaedia Britannica" }
+    }
+  ],
+  "fixtures": [
+    {
+      "id": 1,
+      "name": "supported_claims",
+      "texts": ["The First Amendment protects freedom of speech. Speech that incites imminent lawless action is not protected under Brandenburg v. Ohio. Congress passed the Civil Rights Act in 1964."],
+      "bias": 93, "tone": 96, "agreement": 100,
+      "claims": ["first_amendment", "brandenburg_incite", "civil_rights_1964"],
+      "score": 93.0
+    },
+    {
+      "id": 2,
+      "name": "no_claims_extracted",
+      "texts": ["America has 50 states"],
+      "bias": 94, "tone": 99, "agreement": 100,
+      "claims": [],
+      "score": 96.0
+    },
+    {
+      "id": 3,
+      "name": "wrong_number_not_checked",
+      "texts": [
+        "Your 30% loyalty discount applies to the Pro plan.",
+        "Revenue grew 22% year over year.",
+        "In Varghese v. China Southern Airlines, the court held that the Montreal Convention tolls the statute of limitations during bankruptcy."
+      ],
+      "bias": 95, "tone": 98, "agreement": 100,
+      "claims": [],
+      "score": 94.0
+    },
+    {
+      "id": 4,
+      "name": "contradicted_claim",
+      "texts": ["The earth is flat."],
+      "bias": 70, "tone": 85, "agreement": 100,
+      "claims": ["earth_flat"],
+      "score": 41.0
+    },
+    {
+      "id": 5,
+      "name": "promotional_tone",
+      "texts": ["AMAZING news!!! The First Amendment protects freedom of speech, and it is the GREATEST right ever written!!!"],
+      "bias": 85, "tone": 48, "agreement": 100,
+      "claims": ["first_amendment"],
+      "score": 72.0
+    },
+    {
+      "id": 6,
+      "name": "one_sided_framing",
+      "texts": ["Clearly, the First Amendment protects freedom of speech, and anyone who disagrees is obviously wrong. Everyone knows there are no valid counterarguments."],
+      "bias": 40, "tone": 80, "agreement": 100,
+      "claims": ["first_amendment"],
+      "score": 68.0
+    },
+    {
+      "id": 7,
+      "name": "sycophantic_agreement",
+      "texts": ["You're absolutely right, excellent point! The 22% growth figure you mentioned is definitely correct, as you said."],
+      "bias": 80, "tone": 85, "agreement": 30,
+      "claims": [],
+      "score": 63.0
+    },
+    {
+      "id": 8,
+      "name": "mixed_claims",
+      "texts": ["The First Amendment protects freedom of speech. Brandenburg v. Ohio was decided in 1969. The Supreme Court ruled in Brandenburg that all speech is protected without exception."],
+      "bias": 90, "tone": 92, "agreement": 100,
+      "claims": [
+        "first_amendment",
+        "brandenburg_1969",
+        { "claim": "The Supreme Court ruled in Brandenburg that all speech is protected without exception.", "verdict": "unverifiable" }
+      ],
+      "score": 74.0
+    },
+    {
+      "id": 9,
+      "name": "fact_check_unavailable",
+      "texts": ["The company reported record quarterly revenue and announced a new partnership with a major supplier."],
+      "bias": 88, "tone": 90, "agreement": 100,
+      "accuracy_status": "unavailable",
+      "claims": [],
+      "score": 78.0
+    },
+    {
+      "id": 10,
+      "name": "hedged_filler",
+      "texts": ["It might perhaps be the case that, in general, things could arguably tend to improve somewhat, although it seems hard to say for sure."],
+      "bias": 90, "tone": 90, "agreement": 90,
+      "low_info": true,
+      "claims": [],
+      "score": 66.0
+    },
+    {
+      "id": 11,
+      "name": "everything_low",
+      "texts": ["EVERYONE KNOWS this is the ONLY answer!!! Great question, you're absolutely right, and anyone who disagrees is an idiot!!!"],
+      "bias": 25, "tone": 22, "agreement": 30,
+      "claims": [],
+      "score": 28.0
+    },
+        {
+      "id": 11,
+      "name": "everything_low",
+      "texts": ["EVERYONE KNOWS this is the ONLY answer!!! Great question, you're absolutely right, and anyone who disagrees is an idiot!!!"],
+      "bias": 25, "tone": 22, "agreement": 30,
+      "claims": [],
+      "score": 28.0
+    }
+  ]
+}

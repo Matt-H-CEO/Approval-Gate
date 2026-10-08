@@ -1,0 +1,79 @@
+<!doctype html>
+<!--
+  YOUR PERSONA PAGE. This is a skeleton; the UI is yours to design (25 points, optional).
+  Any approach is fine: edit this file, replace it with a built React/Vue/Svelte app in this folder,
+  or write plain JS. wrapper/serve.py serves everything in wrapper/ui/, with persona.html at "/".
+  Offline only: no CDNs or external services at demo time.
+
+  WHAT THE PAGE MUST DO (what judges score)
+    1. SEND AN INPUT, GET A RESPONSE: a draft goes to POST /decide (your wrapper), and the page shows the
+       decision, the reason, the evidence, and whether the mock action ran.
+    2. SIMULATE THE ACTION FROM A TEST INPUT: let the user pick a sample input (GET /api/samples?persona=...),
+       send it, and show the gate working: APPROVE -> the action ran; HOLD/BLOCK -> the action did NOT run.
+    3. Make it usable by someone in your persona's job: clear risk, errors shown plainly, a review step.
+
+  RULES
+    - Decisions come only from POST /decide. Do not decide, call the mock, or run the action in the browser.
+    - Latest test-run results are NOT your job: run `python3 gate.py results` for the color-coded viewer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TODO: your page title</title>
+<style>
+  /* TODO: design it. Think about who uses this: the person who is about to send / submit / publish. */
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+  textarea { width: 100%; min-height: 8rem; }
+</style>
+</head>
+<body>
+<h1>TODO: name this screen for your persona's job</h1>
+
+<!-- TODO (1): inputs. Text is required; context is a JSON object your persona rules may use. -->
+<label for="text">Draft</label>
+<textarea id="text"></textarea>
+<button id="check">Check</button>
+
+<!-- TODO (2): sample picker. Fill this from /api/samples (see loadSamples below). -->
+<select id="samples"></select>
+<button id="simulate">Simulate with this sample</button>
+
+<!-- TODO (3): present the result for a human, not as raw JSON. Replace this <pre>. -->
+<pre id="out"></pre>
+
+<script>
+// Set this to the persona you chose: customer_support | paralegal | financial_analyst
+const PERSONA = "customer_support";
+
+// Plumbing: the one call every version of this page makes. Returns {decision, reason, evidence, action_executed, ...}.
+async function decide(text, context = {}) {
+  const response = await fetch("/decide", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, persona: PERSONA, context }) });
+  const body = await response.json();
+  if (!response.ok) throw new Error(body.error || "Request failed");
+  return body;
+}
+
+// Plumbing: sample inputs from the practice set: [{id, text, context}, ...]
+async function loadSamples() {
+  const response = await fetch("/api/samples?persona=" + PERSONA);
+  return (await response.json()).samples;
+}
+
+// TODO: show the result. Decision, reason, and evidence are what a person needs to decide; also show
+// whether the action ran (result.action_executed). Handle loading and errors (including a slow or down Ezio).
+function showResult(result) {
+  document.getElementById("out").textContent = JSON.stringify(result, null, 2);
+}
+
+// TODO: wire the buttons. Disable them while a request is running; catch errors and show them.
+document.getElementById("check").onclick = async () => {
+  showResult(await decide(document.getElementById("text").value));
+};
+
+// TODO: populate #samples from loadSamples(), then make "Simulate" send the chosen sample's text and context
+// through decide() and show clearly whether the action ran.
+</script>
+</body>
+</html>
