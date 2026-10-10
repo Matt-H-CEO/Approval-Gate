@@ -200,19 +200,65 @@
   </ol>
 </header>
 <nav role="tablist" aria-label="Views">
-  <button role="tab" aria-selected="true" aria-controls="tab-dispatch" id="t-dispatch">1 · Dispatch decision (MOCK)</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">2 · Check &amp; send <span class="chip APPROVE" style="margin:0 0 0 6px">judged</span></button>
-  <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">3 · Simulate samples</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">4 · Review queue &amp; audit</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">5 · Scenario lab: trade-offs</button>
+  <button role="tab" aria-selected="true" aria-controls="tab-start" id="t-start">Start here</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">Sale: check &amp; send <span class="chip APPROVE" style="margin:0 0 0 6px">judged</span></button>
+  <button role="tab" aria-selected="false" aria-controls="tab-dispatch" id="t-dispatch">Aviation: dispatch release (MOCK)</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">Simulate samples</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">Review queue &amp; audit</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">Scenario lab: trade-offs</button>
 </nav>
-<div style="padding:10px 24px 0"><div class="banner info" style="margin:0"><strong>Start at tab 2, Check &amp; send.</strong> That is the judged flow: the customer support persona and the gated action <code>send_email</code>, which is what <code>gate.py judge</code> scores. Tabs 1 and 5 are a second, fictional aviation scenario showing the same gate on a safety decision.<details open style="margin-top:8px"><summary>How to see the whole thing in four steps</summary><ol class="tight" style="margin:6px 0 0"><li><strong>Tab 2.</strong> Press <em>Load demo example</em>, then <em>Check &amp; send</em>. A confident, friendly draft is <strong>blocked</strong>. Note that Ezio rates it GREEN and the starter gate would have sent it; only the check against the price sheet catches the wrong discount and refund window.</li><li><strong>Still tab 2.</strong> Press <em>Check &amp; send recommended reply</em>. The suggested wording is <strong>approved</strong> and the mock <code>send_email</code> runs. Nothing was sent until something passed.</li><li><strong>Tab 4.</strong> Open the audit trail. Both decisions are there, linked, with the preferences that were set <em>before</em> the AI recommended anything. Tab 3 runs the whole sample set side by side if you want volume.</li><li><strong>Tab 1.</strong> The same gate on a safety decision, where a hard limit removes options before any trade-off. This is where a single trust score is clearly not enough.</li></ol><p class="hint" style="margin:6px 0 0">Offline the whole way: no network call, no key, standard library only. Scored run: <code>python3 gate.py practice --persona customer_support</code>.</p></details></div></div>
 <main>
 <div id="globalBanner" role="status" aria-live="polite"></div>
 
 
+<!-- Start here ---------------------------------------------------------------------------->
+<section id="tab-start" role="tabpanel" aria-labelledby="t-start">
+  <div class="panel">
+    <h2 style="margin:0 0 6px;font-size:18px">Pick a decision to put through the gate</h2>
+    <p class="hint" style="margin:0">Both are the same gate, the same four tests and the same audit trail. One is a sale, one is a flight. Everything runs on this laptop with no network call.</p>
+  </div>
+
+  <div class="row" style="align-items:stretch">
+    <div class="col panel" style="flex:1 1 420px">
+      <h2 style="margin:0 0 4px;font-size:17px">A sale <span class="chip APPROVE" style="margin-left:6px">judged</span></h2>
+      <p class="hint" style="margin:0 0 8px">Customer support at Lumen Cloud, fictional. Gated action <code>send_email</code>.</p>
+      <p style="margin:0 0 8px">An AI has drafted a warm reply promising a discount and a refund. It reads perfectly. Someone has to decide whether it can go to the customer.</p>
+      <p style="margin:0 0 4px"><strong>What you will do</strong></p>
+      <ol class="tight" style="margin:0 0 10px">
+        <li>Press <em>Load demo example</em>, then <em>Check &amp; send</em>. The draft is <strong>blocked</strong>: Ezio rates it GREEN and a basic gate would have sent it, but the price sheet says otherwise.</li>
+        <li>Press <em>Check &amp; send recommended reply</em>. A wording that breaks no policy is <strong>approved</strong> and the mock send runs.</li>
+      </ol>
+      <p style="margin:0"><button class="primary js-goto" data-go="t-send">Open the sale decision</button></p>
+      <p class="hint" style="margin:8px 0 0">This is the flow <code>python3 gate.py judge --persona customer_support</code> scores.</p>
+    </div>
+
+    <div class="col panel" style="flex:1 1 420px">
+      <h2 style="margin:0 0 4px;font-size:17px">A flight <span class="chip HOLD_FOR_REVIEW" style="margin-left:6px">mock</span></h2>
+      <p class="hint" style="margin:0 0 8px">Fictional carrier, fictional flight, invented numbers. Not flight-planning advice.</p>
+      <p style="margin:0 0 8px">Fog is forecast at the destination. An AI dispatch assistant proposes leaving on time and gives the reason a dispatcher would have to sign.</p>
+      <p style="margin:0 0 4px"><strong>What you will do</strong></p>
+      <ol class="tight" style="margin:0 0 10px">
+        <li>Set whose priorities decide <em>before</em> the AI recommends anything, press <em>Load demo example</em>, then <em>Check dispatch release</em>. It is <strong>blocked</strong>: the reserve figure is wrong and the fuel minimum is broken.</li>
+        <li>Press <em>Check &amp; sign recommended release</em>. An option that breaks no hard limit is <strong>approved</strong> and signed.</li>
+      </ol>
+      <p style="margin:0"><button class="primary js-goto" data-go="t-dispatch">Open the flight decision</button></p>
+      <p class="hint" style="margin:8px 0 0">Here a single trust score is clearly not enough: safety, schedule and cost conflict, and the fuel minimum is a limit, not a preference.</p>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 6px;font-size:17px">After either one</h2>
+    <p style="margin:0 0 10px">Every decision, and every human release, is written down with its evidence, the preferences that were set beforehand, and the time it took.</p>
+    <p style="margin:0">
+      <button class="secondary js-goto" data-go="t-review">See the audit trail</button>
+      <button class="secondary js-goto" data-go="t-sim" style="margin-left:6px">Run the whole sample set</button>
+      <button class="secondary js-goto" data-go="t-lab" style="margin-left:6px">Compare drafts in the scenario lab</button>
+    </p>
+  </div>
+</section>
+
 <!-- Dispatch decision (MOCK) ------------------------------------------------------------------>
-<section id="tab-dispatch" role="tabpanel" aria-labelledby="t-dispatch">
+<section id="tab-dispatch" role="tabpanel" aria-labelledby="t-dispatch" hidden>
   <div class="panel">
     <h2 style="margin:0 0 8px;font-size:17px">What's going on</h2>
     <div id="dispSituation" class="hint">Loading the scenario…</div>
@@ -708,6 +754,12 @@ function doneBlock(x, kind) {
     '</div>' +
     '<p style="margin-top:10px"><button class="secondary js-open-audit">Next: open the audit trail and see both decisions</button></p>';
 }
+document.addEventListener('click', function (e) {
+  var b = e.target.closest ? e.target.closest('.js-goto') : null;
+  if (!b) return;
+  var t = document.getElementById(b.getAttribute('data-go'));
+  if (t) { t.click(); window.scrollTo(0, 0); }
+});
 function wireAudit(el) {
   var ab = el.querySelector('.js-open-audit');
   if (!ab) return;
