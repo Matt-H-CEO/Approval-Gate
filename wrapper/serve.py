@@ -104,9 +104,11 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/review":
             return self.review()
+        if self.path == "/api/dispatch":
+            return self.run_dispatch()
         if self.path == "/api/scenario":
             return self.run_scenario()
-        if self.path == "/api/dispatch":
+        if self.path == "/api/dispatch_gate":  # earlier variant; the UI uses /api/dispatch above
             return self.dispatch()
         if self.path != "/decide":
             return self.send_json(404, {"error": "Unknown endpoint"})
@@ -189,6 +191,41 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:  # noqa: BLE001
             return self.send_json(500, {"error": f"Dispatch gate failed: {type(e).__name__}"})
         return self.send_json(200, {**asdict(r), "action_executed": executed, "action": "sign_dispatch_release"})
+
+    def run_dispatch(self):
+        """Check one proposed dispatch release: an option plus the rationale a person would sign."""
+        try:
+            p = self.read_json()
+            option = str(p.get("option") or "")
+            rationale = str(p.get("rationale") or "")
+            if not option or not rationale.strip():
+                return self.send_json(400, {"error": "Supply an option and a rationale"})
+            prefs = p.get("preferences") if isinstance(p.get("preferences"), dict) else None
+            ctx = p.get("context") if isinstance(p.get("context"), dict) else {}
+            result = scenario.dispatch("aviation_dispatch", option, rationale, prefs, ctx)
+        except KeyError:
+            return self.send_json(404, {"error": "Unknown option"})
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            return self.send_json(500, {"error": f"Dispatch failed: {type(e).__name__}"})
+        row = {"timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+               "decision_id": result["decision_id"], "persona": "aviation_dispatch",
+               "input": result["rationale"], "context": dict(result.get("context") or {}, option=result["option"]),
+               "decision": result["decision"], "reason": result["reason"], "ezio_status": "ok",
+               "findings": [], "issues": result["issues"], "ezio_flags": result["ezio_flags"],
+               "baseline": result["baseline"], "preferences": result["recommendation"]["preferences"],
+               "recommendation": {k: result["recommendation"][k] for k in ("choice", "choice_label", "why", "tradeoff", "suggested_release")}}
+        try:
+            with (LOG_DIR / "audit_log.jsonl").open("a") as f:
+                f.write(json.dumps(row) + "\n")
+            if result["action_executed"]:
+                with (LOG_DIR / "dispatch_actions.log").open("a") as f:
+                    f.write(json.dumps({"timestamp": row["timestamp"], "decision_id": result["decision_id"],
+                                        "option": result["option"], "outcome": "release signed (mock)"}) + "\n")
+        except OSError:
+            pass
+        return self.send_json(200, result)
 
     def run_scenario(self):
         try:

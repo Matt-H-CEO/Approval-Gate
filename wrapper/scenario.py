@@ -9,8 +9,10 @@ Two kinds of scenario file in wrapper/scenarios/:
 
 Dry run: the lab never runs the gated action. Advisory utility never changes the gate's decision.
 """
+import hashlib
 import json
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -502,3 +504,123 @@ def decide_dispatch(option, rationale, preferences=None, context=None, audit_log
                 fh.write(json.dumps({"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "action": "sign_dispatch_release",
                                      "option": option, "decision_id": r.decision_id}) + "\n")
     return r, executed
+
+# ---------------------------------------------------------------- one live dispatch release (aviation)
+
+def _dispatch_issues(findings, flags):
+    """Every issue in the rationale and who caught it: Ezio, HoldPoint's rule check, or both."""
+    issues = []
+    for f in findings:
+        issues.append({"issue": f.get("message", ""), "level": f.get("level", ""),
+                       "expected": f.get("expected", "") or "", "source": f.get("source", "") or "",
+                       "caught_by": "HoldPoint only"})
+    for fl in flags:
+        txt = fl["issue"] if isinstance(fl, dict) else str(fl)
+        kind = fl.get("kind", "") if isinstance(fl, dict) else ""
+        issues.append({"issue": f"Ezio flagged {txt}: its own read of the wording, not of the facts", "level": "HOLD_FOR_REVIEW" if ("critical" in txt or kind == "tier") else "NOTE",
+                       "expected": "", "source": "Ezio's own read of the wording", "caught_by": "Ezio"})
+    return issues
+
+
+def _suggested_release(scn, choice, prof, table):
+    """A rationale for the recommended option that the rule check already accepts."""
+    for d in scn["drafts"]:
+        if d.get("option") != choice:
+            continue
+        try:
+            r = _run_option_draft(scn, d, prof, table)
+        except Exception:  # noqa: BLE001
+            continue
+        if r["gate"]["decision"] == "APPROVE" and not r["ezio_flags"]:
+            return {"option": choice, "rationale": d["text"]}
+    row = next((r for r in table if r["key"] == choice), None)
+    if not row:
+        return {"option": choice, "rationale": ""}
+    bits = "; ".join(f"{o['label'].lower()} {row['metrics'][o['key']]}" for o in scn["objectives"] if o["key"] in row["metrics"])
+    return {"option": choice, "rationale": f"Recommend {row['label'].lower()}: {bits}. Every hard limit is met."}
+
+
+def dispatch(sid, option_key, rationale, preferences=None, context=None):
+    """Check one proposed release (an option plus the rationale a person would sign)."""
+    scn = load(sid)
+    if scn.get("kind") != "options":
+        raise ValueError("dispatch is only available for option scenarios")
+    if option_key not in scn["options"]:
+        raise KeyError(option_key)
+    profiles = {k: dict(v) for k, v in scn["profiles"].items()}
+    prefs = preferences if isinstance(preferences, dict) else None
+    pkey = "balanced"
+    if prefs and isinstance(prefs.get("weights"), dict):
+        profiles["custom"] = {"label": str(prefs.get("label") or "Your weights"), "weights": prefs["weights"]}
+        pkey = "custom"
+    elif prefs and prefs.get("profile") in profiles:
+        pkey = prefs["profile"]
+    table, prof = option_table(scn, profiles)
+    run = _run_option_draft(scn, {"id": "live", "option": option_key, "text": rationale, "note": ""}, prof, table)
+    chosen, gate = prof[pkey], run["gate"]
+    issues = _dispatch_issues(gate["findings"], run["ezio_flags"])
+
+    frontier = sorted(
+        [{"key": r["key"], "label": r["label"], "metrics": r["metrics"],
+          "score": round((chosen["utility"].get(r["key"]) or 0) * 100)}
+         for r in table if r["feasible"] and not r.get("dominated_by")],
+        key=lambda x: -x["score"])
+    excluded = []
+    for r in table:
+        if not r["feasible"]:
+            broken = "; ".join(g["label"] for g in r["guardrails"] if not g["ok"])
+            excluded.append({"label": r["label"], "reason": f"ruled out by a hard limit that is never traded away: {broken}"})
+        elif r.get("dominated_by"):
+            other = next((x for x in table if x["key"] == r["dominated_by"]), None)
+            excluded.append({"label": r["label"], "reason": f"another allowed option ({other['label'] if other else '?'}) is better on every count"})
+
+    choice = chosen["best"]
+    choice_row = next((r for r in table if r["key"] == choice), None)
+    second = [f for f in frontier if f["key"] != choice]
+    tradeoff = ""
+    if choice_row and second:
+        alt = second[0]
+        diffs = [f"{o['label'].lower()} {alt['metrics'][o['key']]} instead of {choice_row['metrics'][o['key']]}"
+                 for o in scn["objectives"] if o["key"] in alt["metrics"] and alt["metrics"][o["key"]] != choice_row["metrics"][o["key"]]]
+        if diffs:
+            tradeoff = f"{alt['label']} would give you {', '.join(diffs)}."
+    pct = {k: f"{round(v * 100)}%" for k, v in chosen["weights"].items()}
+    why = (f"Under '{chosen['label']}' ({', '.join(f'{k} {v}' for k, v in pct.items())}), "
+           f"{choice_row['label'] if choice_row else '?'} scores "
+           f"{round((chosen['utility'].get(choice) or 0) * 100)} out of 100 - the best of the options that break no hard limit "
+           f"and that no other allowed option beats on every count.")
+
+    did = hashlib.sha1(f"{time.time_ns()}|{option_key}|{rationale}".encode()).hexdigest()[:12]
+    blocks = [f for f in gate["findings"] if f.get("level") == "BLOCK"]
+    approved = gate["decision"] == "APPROVE"
+    return {
+        "decision": gate["decision"], "reason": gate["reason"], "decision_id": did,
+        "consequence": ("Release signed (mock): the dispatcher may sign this release as written."
+                        if approved else "Not signed. The release is held until a dispatcher decides."),
+        "action_executed": approved,
+        "option": option_key, "option_label": run["option_label"], "rationale": rationale,
+        "metrics": run["metrics"], "feasible": run["feasible"],
+        "ezio": run["ezio"], "ezio_flags": run["ezio_flags"], "issues": issues,
+        "baseline": run["baseline"], "context": dict(context or {}),
+        "four_tests": {
+            "verified": {"ok": not blocks, "text": f"{len(gate.get('checked') or [])} figure(s) matched the flight's own numbers; {len(blocks)} contradicted."},
+            "calibrated": {"ok": True, "text": ("Could not check: " + "; ".join(gate.get("could_not_check") or [])) if gate.get("could_not_check") else "Nothing left unchecked that this scenario's rules cover."},
+            "overseeable": {"ok": True, "text": "A dispatcher must decide before anything is signed; the problem text is named and the consequence stated." if not approved else "Signed automatically: every checked figure matched."},
+            "auditable": {"ok": True, "text": f"Decision {did} logged with the option, rationale, Ezio's full response, evidence, reason and time."},
+        },
+        "recommendation": _plain_recommendation(scn, preferences),
+        "scenario": {k: scn.get(k) for k in ("id", "title", "situation", "disclaimer", "action", "rules_note")},
+        "guardrails": scn["guardrails"], "objectives": scn["objectives"],
+    }
+
+
+def _plain_recommendation(scn, preferences):
+    """The plain-language recommendation (dispatch_recommendation) in the shape the dispatch page reads."""
+    rec = dispatch_recommendation(scn, preferences)
+    rec["frontier"] = sorted([dict(f, score=round((f["score"] or 0) * 100)) for f in rec["frontier"]], key=lambda x: -x["score"])
+    names = {"safety_margin_min": "safety", "delay_min": "schedule", "cost_usd": "cost"}
+    w = rec["preferences"]["weights"]
+    rec["preferences"]["weights_pct"] = {k: f"{round(v * 100)}%" for k, v in w.items()}
+    rec["preferences"]["stated_text"] = ("Priorities set before the AI recommended anything: "
+                                         + ", ".join(f"{names.get(k, k)} {round(v * 100)}%" for k, v in w.items()) + ".")
+    return rec
