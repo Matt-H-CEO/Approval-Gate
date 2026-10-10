@@ -54,8 +54,8 @@ def to_float(raw):
 
 _SCALE = {"k": 1e3, "thousand": 1e3, "m": 1e6, "mm": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "billion": 1e9}
 _MONEY = re.compile(
-    r"(?:\$\s?|\busd\s?)(?P<a>\d[\d,]*(?:\.\d+)?)(?:\s?(?P<s>thousand|million|billion|bn|mm|k|m|b)\b)?"
-    r"|(?P<b>\d[\d,]*(?:\.\d+)?)\s?(?P<s2>thousand|million|billion)?\s?(?:dollars|usd|bucks)\b",
+    r"(?:\$\s?|\busd\s?)(?P<a>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)(?:\s?(?P<s>thousand|million|billion|bn|mm|k|m|b)\b)?"
+    r"|(?P<b>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)\s?(?P<s2>thousand|million|billion)?\s?(?:dollars|usd|bucks)\b",
     re.I,
 )
 _PER_MONTH = re.compile(r"^\s*(?:/\s?|per\s|a\s|an\s|each\s|every\s)?\s*(?:mo\b|mos\b|month\b|monthly\b)", re.I)

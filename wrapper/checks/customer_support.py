@@ -87,9 +87,13 @@ def check(text, context, sot):
     refund_m, refund_a = float(pol["refunds"]["monthly_plans_days"]), float(pol["refunds"]["annual_plans_days"])
     trial_days, trial_plans = float(pol["free_trial"]["days"]), pol["free_trial"]["plans"]
 
-    ctx_plan = context.get("plan") if context.get("plan") in plans else None
-    tenure = context.get("customer_tenure_months")
-    tenure = float(tenure) if isinstance(tenure, (int, float)) and not isinstance(tenure, bool) else None
+    raw_plan = str(context.get("plan") or "").strip().capitalize()
+    ctx_plan = raw_plan if raw_plan in plans else None
+    tenure = context.get("customer_tenure_months", context.get("tenure_months"))
+    try:
+        tenure = None if tenure is None or isinstance(tenure, bool) else float(str(tenure).strip())
+    except ValueError:
+        tenure = None
 
     res = CheckResult()
     offer = {"chosen": None, "plan": None}
@@ -131,9 +135,27 @@ def check(text, context, sot):
                         res.verified.append(f"loyalty minimum tenure {loyal_min:g} months (policies.json)")
 
         # ---- rule 1: prices --------------------------------------------------------------
-        for m in tn.money(s):
+        monies = tn.money(s)
+        explicit = [(pos, pl) for pos, pl, inf in mentions if not inf]
+        order = list(dict.fromkeys(pl for _, pl in explicit))
+
+        def direct(m):
+            prev = [pos for pos, _ in explicit if pos <= m["start"]]
+            return bool(prev) and not any(max(prev) < o["start"] < m["start"] for o in monies)
+
+        # A run of prices after the plans were already listed ("annual billing is $15.20, $39.20 and $79.20")
+        # maps to the plans in the order they were named; otherwise an indirect link is only a guess -> HOLD.
+        listed = [m for m in monies if explicit and not direct(m)]
+        ordinal = {id(m): order[i] for i, m in enumerate(listed)} if len(order) >= 2 and len(listed) == len(order) else {}
+        if not ordinal and len(order) >= 2 and len(monies) == len(order) and explicit and all(m["start"] > max(p for p, _ in explicit) for m in monies):
+            ordinal = {id(m): order[i] for i, m in enumerate(monies)}  # "Starter, Pro and Business cost $19, $49 and $99"
+        for m in monies:
             before, after = s[max(0, m["start"] - 30):m["start"]], s[m["end"]:m["end"] + 20]
             plan, inferred = plan_at(m["start"])
+            if id(m) in ordinal:
+                plan, inferred = ordinal[id(m)], False
+            elif explicit and not direct(m):
+                inferred = True
             if _SAVINGS_BEFORE.search(before) or _SAVINGS_AFTER.search(after):
                 _check_savings(res, m, plan, plans, loyal_pct, annual_pct)
                 continue

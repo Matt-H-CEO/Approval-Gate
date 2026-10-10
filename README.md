@@ -1,6 +1,6 @@
 # Reply Gate: an Approval Gate submission
 
-**Persona:** customer support lead (Lumen Cloud, fictional). **Gated action:** `send_email`. **Team:** [NEEDS INPUT: team name and members].
+**Persona:** customer support lead (Lumen Cloud, fictional). **Gated action:** `send_email`. **Team:** Matt Hudson (solo).
 
 A decision layer between an AI-drafted customer email and the send. It checks every figure against the company's price sheet and policies (the independent signal), reads Ezio's verdict, claims and dimensions, and returns APPROVE / HOLD_FOR_REVIEW / BLOCK with a reason, evidence and a coverage line. The mock `send_email` runs only on APPROVE. One-page decision policy: **[POLICY.md](POLICY.md)**.
 
