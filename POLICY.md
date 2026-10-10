@@ -1,4 +1,4 @@
-# Decision policy: Reply Gate (customer support persona)
+# Decision policy: HoldPoint (customer support persona)
 
 **Gated action:** `send_email` to a Lumen Cloud customer (fictional). **Decisions:** APPROVE (send), HOLD_FOR_REVIEW (a person decides), BLOCK (never send as written). **The worst signal wins.** Every decision carries a plain reason, evidence, a coverage line (what was and wasn't checked) and an audit record.
 
