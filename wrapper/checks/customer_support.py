@@ -34,6 +34,35 @@ _STRONG_HYPE = re.compile(r"\b(guarantee[ds]?|risk-free|unbeatable|you(?:'ll| wi
 _MILD_HYPE = re.compile(r"\b(amazing|incredible|awesome|fantastic|unbelievable|spectacular|life-changing|revolutionary|insane|mind-blowing|best ever)\b", re.I)
 
 
+_TOPICS = {
+    "response": _RESPONSE,
+    "trial": re.compile(r"\btrial\b", re.I),
+    "refund": re.compile(r"\b(refund\w*|money back|money-back)\b", re.I),
+    "tenure": re.compile(r"\b(loyal\w*|tenure|customer (?:of|for)|been with us|member for|with us for|kicks in)\b", re.I),
+}
+_MIN_MARKER = re.compile(r"(after|at least|more than|over|minimum of|min\.?|kicks in after|once you(?:'ve| have) (?:been|passed)|customers? of)\s*$", re.I)
+_PROMISE_TIME = re.compile(r"\b(by|before|next|this|within|end of|tomorrow|monday|tuesday|wednesday|thursday|friday|weekend)\b", re.I)
+_PRODUCT_CHANGE = re.compile(r"\b(add\w*|implement\w*|launch\w*|develop\w*|roll(?:ing)? out|enabl\w*|turn on|support for)\b", re.I)
+_TEAMISH = re.compile(r"\b(team|engineer\w*|product|developers?|devs)\b", re.I)
+
+
+def _topic_durations(s, money_spans):
+    """Durations in a sentence, each tagged with its nearest topic keyword. Skips '$19 a month' style price periods."""
+    out = []
+    for d in tn.durations(s):
+        if any(0 <= d["start"] - end <= 4 for end in money_spans):
+            continue
+        best, best_d = None, None
+        for name, rx in _TOPICS.items():
+            for m in rx.finditer(s):
+                dist = (d["start"] - m.end()) if m.end() <= d["start"] else (m.start() - d["end"]) * 1.3 if m.start() >= d["end"] else 0
+                if dist >= 0 and (best_d is None or dist < best_d):
+                    best, best_d = name, dist
+        d["topic"] = best
+        out.append(d)
+    return out
+
+
 def _plans(sot):
     out = {}
     for row in sot["price_sheet"]:
@@ -86,6 +115,20 @@ def check(text, context, sot):
 
         annual_ctx = bool(_ANNUAL.search(s))
         loyalty_ctx = bool(_LOYALTY.search(s))
+        money_ends = [m["end"] for m in tn.money(s)]
+        tdurs = _topic_durations(s, money_ends)
+
+        # ---- rule 2: a stated loyalty tenure minimum must be the policy's (with or without a percent) --
+        if loyalty_ctx:
+            for d in tdurs:
+                if d["topic"] == "tenure" and d["unit"] in ("month", "year") and _MIN_MARKER.search(s[max(0, d["start"] - 25):d["start"]]):
+                    months = d["days"] / 30 if d["unit"] == "month" else d["days"] / 365 * 12
+                    if not tn.close(months, loyal_min, rel=0, abs_tol=0.5):
+                        res.findings.append(Finding(BLOCK, f"Loyalty needs {loyal_min:g}+ months of tenure; the email says {d['text']}.",
+                                                    "2 eligibility", d["text"], f"{loyal_min:g} months",
+                                                    "policies.json discounts.loyalty.min_tenure_months", s))
+                    else:
+                        res.verified.append(f"loyalty minimum tenure {loyal_min:g} months (policies.json)")
 
         # ---- rule 1: prices --------------------------------------------------------------
         for m in tn.money(s):
@@ -171,11 +214,7 @@ def check(text, context, sot):
                 res.findings.append(Finding(BLOCK, f"The loyalty discount applies only to {' and '.join(loyal_plans)}, not {plan}.",
                                             "2 eligibility", x["text"], ", ".join(loyal_plans), "policies.json discounts.loyalty.applies_to", s))
                 continue
-            stated_min = [d for d in tn.durations(s) if d["unit"] in ("month", "year")]
-            bad_min = [d for d in stated_min if not tn.close(d["days"] / 30 if d["unit"] == "month" else d["days"] / 365 * 12, loyal_min, rel=0)]
-            if bad_min:
-                res.findings.append(Finding(BLOCK, f"Loyalty needs {loyal_min:g}+ months of tenure; the email says {bad_min[0]['text']}.",
-                                            "2 eligibility", bad_min[0]["text"], f"{loyal_min:g} months", "policies.json discounts.loyalty.min_tenure_months", s))
+            if any(f.rule == "2 eligibility" and f.span == s and "tenure" in f.message for f in res.findings):
                 continue
             if re.search(r"\b(you|your)\b", low):
                 if ctx_plan is None or tenure is None:
@@ -195,7 +234,7 @@ def check(text, context, sot):
             billing = "annual" if re.search(r"\b(annual|annually|yearly)\b", low) else "monthly" if _MONTHLY_BILL.search(s) else None
             allowed = {"annual": [refund_a], "monthly": [refund_m], None: [refund_m, refund_a]}[billing]
             exp = " or ".join(f"{v:g} days" for v in allowed) + (f" ({billing} plans)" if billing else "")
-            spans = [(d["days"], d["text"]) for d in tn.durations(s) if d["unit"] != "hour"]
+            spans = [(d["days"], d["text"]) for d in tdurs if d["unit"] != "hour" and d["topic"] in ("refund", None)]
             spans += [({"year": 365, "month": 30, "week": 7, "quarter": 91}[f.group(1).lower()], f.group(0)) for f in _FIRST_PERIOD.finditer(s)]
             if _UNLIMITED.search(s):
                 res.findings.append(Finding(BLOCK, f"Refunds are limited to {exp}; the email promises no time limit.",
@@ -216,7 +255,7 @@ def check(text, context, sot):
             if plan and plan not in trial_plans and not negated:
                 res.findings.append(Finding(HOLD if inferred else BLOCK, f"Only {' and '.join(trial_plans)} have a free trial; {plan} does not.",
                                             "1 facts", s.strip(), ", ".join(trial_plans), "policies.json free_trial", s))
-            days = [d for d in tn.durations(s) if d["unit"] in ("day", "week", "month")]
+            days = [d for d in tdurs if d["unit"] in ("day", "week", "month") and d["topic"] in ("trial", None)]
             bad = [d for d in days if not tn.close(d["days"], trial_days, rel=0, abs_tol=0.5)]
             if bad and not negated:
                 res.findings.append(Finding(BLOCK, f"The free trial is {trial_days:g} days; the email says {bad[0]['text']}.",
@@ -230,8 +269,8 @@ def check(text, context, sot):
 
         # ---- rule 1: first-response time ----------------------------------------------------
         if _RESPONSE.search(s):
-            for d in tn.durations(s):
-                if d["unit"] not in ("hour", "day"):
+            for d in tdurs:
+                if d["unit"] not in ("hour", "day") or d["topic"] not in ("response", None):
                     continue
                 plan, inferred = plan_at(d["start"])
                 if plan is None or plan == "Enterprise":
@@ -245,8 +284,9 @@ def check(text, context, sot):
                                                 "1 facts", d["text"], f"{exp:g} hours", "price_sheet.csv first_response_hours", s))
 
         # ---- rule 3: promises beyond the agent's authority ------------------------------------
-        if _EXCEPTION.search(s) or (_COMMIT.search(s) and _SCOPE.search(s)):
-            hit = (_EXCEPTION.search(s) or _SCOPE.search(s)).group(0)
+        change = _COMMIT.search(s) and _PRODUCT_CHANGE.search(s) and (_PROMISE_TIME.search(s) or _TEAMISH.search(s))
+        if _EXCEPTION.search(s) or (_COMMIT.search(s) and _SCOPE.search(s)) or change:
+            hit = (_EXCEPTION.search(s) or _SCOPE.search(s) or _PRODUCT_CHANGE.search(s)).group(0)
             res.findings.append(Finding(HOLD, f"Promise a support agent can't make on their own (\"{hit}\"): a manager should review.",
                                         "3 promise", hit, "agent_authority: no feature promises or exceptions", "policies.json agent_authority", s))
 
