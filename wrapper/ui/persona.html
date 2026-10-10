@@ -204,7 +204,7 @@
   <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">4 · Review queue &amp; audit</button>
   <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">5 · Scenario lab: trade-offs</button>
 </nav>
-<div style="padding:10px 24px 0"><div class="banner info" style="margin:0">Judges start at <strong>tab 2, Check &amp; send</strong>: the customer support persona and the gated action <code>send_email</code>, which is what <code>gate.py judge</code> scores. Tab 3 runs the sample set, tab 4 is the review queue and audit trail. Tabs 1 and 5 are a second, fictional aviation scenario showing the same gate on a safety decision.</div></div>
+<div style="padding:10px 24px 0"><div class="banner info" style="margin:0"><strong>Start at tab 2, Check &amp; send.</strong> That is the judged flow: the customer support persona and the gated action <code>send_email</code>, which is what <code>gate.py judge</code> scores. Tabs 1 and 5 are a second, fictional aviation scenario showing the same gate on a safety decision.<details open style="margin-top:8px"><summary>How to see the whole thing in four steps</summary><ol class="tight" style="margin:6px 0 0"><li><strong>Tab 2.</strong> Press <em>Load demo example</em>, then <em>Check &amp; send</em>. A confident, friendly draft is <strong>blocked</strong>. Note that Ezio rates it GREEN and the starter gate would have sent it; only the check against the price sheet catches the wrong discount and refund window.</li><li><strong>Still tab 2.</strong> Press <em>Check &amp; send recommended reply</em>. The suggested wording is <strong>approved</strong> and the mock <code>send_email</code> runs. Nothing was sent until something passed.</li><li><strong>Tab 4.</strong> Open the audit trail. Both decisions are there, linked, with the preferences that were set <em>before</em> the AI recommended anything. Tab 3 runs the whole sample set side by side if you want volume.</li><li><strong>Tab 1.</strong> The same gate on a safety decision, where a hard limit removes options before any trade-off. This is where a single trust score is clearly not enough.</li></ol><p class="hint" style="margin:6px 0 0">Offline the whole way: no network call, no key, standard library only. Scored run: <code>python3 gate.py practice --persona customer_support</code>.</p></details></div></div>
 <main>
 <div id="globalBanner" role="status" aria-live="polite"></div>
 
@@ -459,7 +459,9 @@ function renderDecision(el, r, text, isFollowUp) {
     ${welfareCard(r.welfare)}
     <details><summary>Full evidence (what the audit log records)</summary><ul class="tight">${(r.evidence || []).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></details>
     ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (the Review queue &amp; audit tab).</p>' : ''}
-    ${(!isFollowUp && r.recommendation && r.recommendation.suggested_reply) ? '<p><button class="primary" id="recBtn">Check &amp; send recommended reply</button></p><div id="result2"></div>' : ''}`;
+    ${(!isFollowUp && r.recommendation && r.recommendation.suggested_reply) ? '<p><button class="primary" id="recBtn">Check &amp; send recommended reply</button></p><div id="result2"></div>' : ''}
+    ${isFollowUp ? doneBlock(r, 'email') : ''}`;
+  wireAudit(el);
   const rb = el.querySelector('#recBtn');
   if (rb && !isFollowUp) rb.addEventListener('click', async () => {
     const reply = r.recommendation.suggested_reply;
@@ -687,6 +689,26 @@ function renderLab(L) {
 
 loadSamples(); loadScenarios(); renderQueue();
 
+// ---------- closing outcome: say plainly what happened and where to look next
+function doneBlock(x, kind) {
+  var signed = !!x.action_executed;
+  var what = kind === 'release' ? 'The release is signed (mock).' : 'The email was sent (mock send_email).';
+  return '<div class="banner ' + (signed ? 'info' : 'warn') + '" style="margin-top:14px">' +
+    '<strong>' + esc(signed ? 'Cleared. ' + what : 'Still not cleared: nothing was sent or signed.') + '</strong><br>' +
+    'That is the whole loop: the AI proposed something, the gate refused it and said why, it offered an option that breaks no rule, and that one was cleared. ' +
+    'Both decisions are in the audit trail and linked to each other, so anyone can check afterwards what was decided and on what basis.' +
+    '</div>' +
+    '<p style="margin-top:10px"><button class="secondary js-open-audit">Next: open the audit trail and see both decisions</button></p>';
+}
+function wireAudit(el) {
+  var ab = el.querySelector('.js-open-audit');
+  if (!ab) return;
+  ab.addEventListener('click', function () {
+    var t = document.getElementById('t-review');
+    if (t) { t.click(); window.scrollTo(0, 0); }
+  });
+}
+
 // ---------- Dispatch decision (MOCK) -------------------------------------------------------
 var DISP = null;                       // the scenario as the API describes it
 var DISP_LAST_PREFS = null;            // the preferences used for the last check
@@ -820,7 +842,9 @@ function renderDispatch(el, d, isFollowUp) {
     '<h3 style="font-size:15px;margin:16px 0 4px">What Ezio caught, and what HoldPoint caught</h3>' +
     dispIssues(d) +
     (isFollowUp ? '' : dispRec(d)) +
+    (isFollowUp ? doneBlock(d, 'release') : '') +
     '</div>';
+  wireAudit(el);
   var rb = el.querySelector('#dispRecBtn');
   if (rb) {
     rb.addEventListener('click', async function () {
