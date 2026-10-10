@@ -1,3 +1,45 @@
+# Reply Gate: an Approval Gate submission
+
+**Persona:** customer support lead (Lumen Cloud, fictional). **Gated action:** `send_email`. **Team:** [NEEDS INPUT: team name and members].
+
+A decision layer between an AI-drafted customer email and the send. It checks every figure against the company's price sheet and policies (the independent signal), reads Ezio's verdict, claims and dimensions, and returns APPROVE / HOLD_FOR_REVIEW / BLOCK with a reason, evidence and a coverage line. The mock `send_email` runs only on APPROVE. One-page decision policy: **[POLICY.md](POLICY.md)**.
+
+## Run it (Python 3.9+, standard library only, fully offline)
+
+```bash
+python3 gate.py practice --persona customer_support          # practice set + six failure drills
+python3 gate.py serve --persona customer_support             # persona page + mock; open the printed address
+python3 gate.py try --persona customer_support "Your Pro plan is $49 per month." --context '{"plan":"Pro","customer_tenure_months":18}'
+python3 gate.py judge --persona customer_support --team "<team>"   # final set (passphrase at 2:30 PM)
+```
+
+## The persona page (`wrapper/ui/persona.html`)
+
+1. **Check & send.** Draft plus customer context in. Out: decision, reason, consequence, problem figures marked in the draft, coverage, Ezio's scorecard, the starter baseline's call, and whether the mock email was sent.
+2. **Simulate samples.** Practice inputs side by side; blocked and held drafts never reach `send_email`.
+3. **Review queue and audit.** Release or reject held drafts. Each flag must be acknowledged and the reason must be specific; fast releases are marked; full audit trail.
+4. **Scenario lab: trade-offs.** A dry run of several AI drafts through the same gate next to the starter baseline (Ezio's tier only). Each proposed action is scored against stakeholder preferences (multi-objective), with hard rules applied first and a trade-off surface showing which option wins as the weights move. Scenarios:
+   - **Support retention**, on the supplied Lumen Cloud data.
+   - **Aviation dispatch (MOCK)**: fictional carrier, flight and numbers. Safety, logistics and commercial needs trade off; the fuel minimum (45-minute IFR reserve per 14 CFR 91.167(a)), fuel limit and crew duty are rules that remove options before any trade.
+
+Every decision shows the opening talk's four decision-grade tests: Verified, Calibrated, Overseeable, Auditable.
+
+## What we added (all in `wrapper/`; harness, mock, fixtures and persona data untouched)
+
+`checks/customer_support.py` (data checker), `textnorm.py` (number words, money, durations), `findings.py`, `wrapper.py` (fail-closed core, coverage, four tests, baseline), `policy.json` (every knob justified), `welfare.py` + `preferences.json` (multi-objective best-option check, advisory), `scenario.py` + `scenarios/` (scenario lab), `serve.py` (review, audit and scenario endpoints), `ui/persona.html`. Team-written variant inputs: `tests/variants.json`.
+
+## AI and event tools used
+
+- **Claude (Anthropic)** wrote and tested the code under the team's direction during the 1:15–3:00 window. Planning documents with no code (a PRD, a backlog, a design note) were prepared before 1:15 and are not in this repo.
+- **Ezio**: the local mock is the judged signal; Ezio beta access was used for product feedback.
+- **HarnessRouter with a TokenRouter key** [NEEDS INPUT: say whether used, and how, e.g. "to generate the aviation drafts, replayed offline"]. No hosted service is called by the wrapper or the page.
+
+## Data
+
+Only the supplied fictional persona data is used for judging. The aviation scenario is our own made-up, non-sensitive mock data, clearly labeled.
+
+---
+
 # Approval Gate
 
 **A trust score doesn't make a decision. Your wrapper does.**

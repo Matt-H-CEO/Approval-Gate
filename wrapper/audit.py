@@ -12,6 +12,7 @@ _lock = threading.Lock()
 
 def record(persona, text, context, decision):
     entry = {
+        "decision_id": getattr(decision, "decision_id", ""),
         "timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "persona": persona,
         "input": text,
@@ -19,6 +20,10 @@ def record(persona, text, context, decision):
         "decision": decision.decision,
         "reason": decision.reason,
         "evidence": decision.evidence,
+        "findings": getattr(decision, "findings", []),
+        "coverage": getattr(decision, "coverage", {}),
+        "welfare": getattr(decision, "welfare", None),
+        "ezio_status": getattr(decision, "ezio_status", ""),
         "ezio": decision.ezio,
     }
     with _lock, LOG.open("a") as f:

@@ -1,21 +1,33 @@
 {
-  "_help": "Your policy knobs. Every threshold needs a one-sentence 'why' (you'll be asked in the demo). evaluate.py warns while any 'why' still says TODO.",
+  "_help": "Policy knobs for the customer-support gate (sending an email to a customer). Every knob has a one-sentence why.",
 
   "on_ezio_failure": "HOLD_FOR_REVIEW",
-  "on_ezio_failure_why": "TODO: if Ezio can't be reached, do you fail open (APPROVE) or fail closed (HOLD_FOR_REVIEW / BLOCK)? Why?",
+  "on_ezio_failure_why": "Fail closed: an email can wait for a person, but a wrong price or policy sent to a customer can't be unsent; our own data check still runs and BLOCKs known contradictions during an outage.",
 
-  "tier_decisions": { "GREEN": "APPROVE", "YELLOW": "HOLD_FOR_REVIEW", "RED": "BLOCK" },
-  "tier_decisions_why": "TODO: why does each tier map to that decision for your business?",
+  "tier_decisions": { "GREEN": "APPROVE", "YELLOW": "HOLD_FOR_REVIEW", "RED": "HOLD_FOR_REVIEW" },
+  "tier_decisions_why": "GREEN defers to our checks (it is not proof accuracy was checked: most wrong-fact drafts score GREEN with accuracy not_scored); YELLOW or RED means Ezio sees a real problem, so a person looks; BLOCK is reserved for proven contradictions below.",
+
+  "contradicted_claim": "BLOCK",
+  "contradicted_claim_why": "A claim Ezio's fact-check contradicts (for example about GDPR) is a proven falsehood our price sheet can't see, so the email must not go out (business rule 6).",
+
+  "unverifiable_claim": "HOLD_FOR_REVIEW",
+  "unverifiable_claim_why": "Ezio found a claim it could not verify either way: a person decides, because unverified is neither true nor false.",
 
   "dimension_minimums": {
-    "tone":      { "hold_below": 0, "why": "TODO" },
-    "bias":      { "hold_below": 0, "why": "TODO" },
-    "agreement": { "hold_below": 0, "why": "TODO" }
+    "tone":      { "hold_below": 60, "why": "Below 60 is Ezio's critical band; the mock costs at most 30 tone points for acronyms like EPS or USD, so only real hype (exclamations, shouting, hype words) gets here, which rule 4 says needs review." },
+    "bias":      { "hold_below": 60, "why": "Below 60 means repeated one-sided framing ('clearly', 'everyone knows'), which is not how we talk to customers; single mild words are handled by our own wording rules instead." },
+    "agreement": { "hold_below": 60, "why": "Below 60 means repeated flattery ('you're absolutely right', 'great question'), the sign of agreeing with a customer instead of checking them (rule 4); one polite phrase stays above it." }
   },
 
   "when_accuracy_not_scored": "ignore",
-  "when_accuracy_not_scored_why": "TODO: 'not scored' means no claims were checked. Is that a problem for your persona?",
+  "when_accuracy_not_scored_why": "'Not scored' only means Ezio found no public-knowledge claims; our price-sheet check covers this persona's facts, and rule 5 says a missing accuracy score is not a reason to hold.",
 
   "when_accuracy_unavailable": "HOLD_FOR_REVIEW",
-  "when_accuracy_unavailable_why": "TODO: the fact-check service was down. What should happen?"
+  "when_accuracy_unavailable_why": "When the fact-check service is down, claims only Ezio can check (laws, regulations) go unchecked, so a person reviews instead of approving blind.",
+
+  "checker_error": "HOLD_FOR_REVIEW",
+  "checker_error_why": "If our own data check crashes, the gate holds rather than approving without its independent signal.",
+
+  "welfare_mode": "advisory",
+  "welfare_mode_why": "The best-option check explains when a correct email still leaves the customer on a worse deal; it is advisory so it informs the reviewer without overriding the business rules the gate is held to ('enforce' turns it into a HOLD)."
 }

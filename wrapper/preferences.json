@@ -1,0 +1,39 @@
+{
+  "_help": "Stakeholder preferences that define the utility function for the best-option check. Prices, terms and eligibility come from price_sheet.csv and policies.json; only the weights and the retention beliefs below are stakeholder inputs. Advisory: they never change the scored APPROVE/HOLD/BLOCK unless policy.json welfare_mode is 'enforce'.",
+
+  "objectives": {
+    "customer_cost": "Monthly cost to the customer (lower is better). From price_sheet.csv and the discounts in policies.json.",
+    "customer_flexibility": "Refund window (longer is better) and commitment (shorter is better), equally weighted. From policies.json refunds and billing type.",
+    "company_revenue": "Expected 12-month revenue = monthly price x 12 x the company's retention belief for that offer (higher is better)."
+  },
+
+  "retention_beliefs": {
+    "list": 0.4,
+    "loyalty": 0.7,
+    "annual": 1.0,
+    "why": "Placeholder beliefs from the company stakeholder for an at-risk customer who says the price is too high [ASSUMPTION, not data]: annual billing is a 12-month contract; a discount makes staying more likely than the list price. Replace with the support lead's own estimates."
+  },
+
+  "profiles": {
+    "price_first_customer": {
+      "label": "Price-first customer",
+      "stakeholder": "customer",
+      "weights": { "customer_cost": 0.9, "customer_flexibility": 0.1, "company_revenue": 0.0 },
+      "why": "A customer whose main complaint is price and who is happy to commit."
+    },
+    "flexibility_first_customer": {
+      "label": "Flexibility-first customer",
+      "stakeholder": "customer",
+      "weights": { "customer_cost": 0.3, "customer_flexibility": 0.7, "company_revenue": 0.0 },
+      "why": "A customer who wants a lower price but won't lock in or give up the 30-day refund window."
+    },
+    "balanced": {
+      "label": "Balanced: customer 50 / company 50",
+      "stakeholder": "support lead",
+      "weights": { "customer_cost": 0.25, "customer_flexibility": 0.25, "company_revenue": 0.5 },
+      "why": "The support lead weighs the customer's outcome and the company's revenue equally."
+    }
+  },
+
+  "default_profile": "balanced"
+}

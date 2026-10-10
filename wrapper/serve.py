@@ -6,12 +6,30 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import mock_actions
+import scenario
+from datetime import datetime, timezone
 from wrapper import APPROVE, decide
 
 UI_DIR = Path(__file__).parent / "ui"
 PERSONAS_DIR = Path(__file__).resolve().parent.parent / "personas"
 
 PERSONAS = {"customer_support", "paralegal", "financial_analyst"}
+LOG_DIR = Path(os.getenv("GATE_LOG_DIR") or Path(__file__).parent)
+FAST_SECONDS = 15  # a release this soon after the gate held the draft is marked as a possible rubber stamp
+GENERIC = {"ok", "okay", "fine", "approved", "approve", "lgtm", "looks good", "looks fine", "good", "yes", "send", "send it",
+           "release", "checked", "all good", "no issues", "go ahead", "sure"}
+
+
+def tail_jsonl(path, limit=40):
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text().splitlines()[-limit:]:
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
+    return rows[::-1]
 
 
 def samples(persona):
@@ -49,6 +67,13 @@ class Handler(BaseHTTPRequestHandler):
         route, _, query = self.path.partition("?")
         if route == "/health":
             return self.send_json(200, {"status": "ok"})
+        if route == "/api/audit":
+            rows = [{k: r.get(k) for k in ("decision_id", "timestamp", "persona", "input", "context", "decision", "reason", "ezio_status")}
+                    for r in tail_jsonl(LOG_DIR / "audit_log.jsonl")]
+            return self.send_json(200, {"audit": rows, "reviews": tail_jsonl(LOG_DIR / "review_log.jsonl"),
+                                        "actions": tail_jsonl(LOG_DIR / "actions.log")})
+        if route == "/api/scenarios":
+            return self.send_json(200, {"scenarios": scenario.list_scenarios()})
         if route == "/api/samples":
             persona = dict(p.split("=", 1) for p in query.split("&") if "=" in p).get("persona")
             if persona not in PERSONAS:
@@ -65,7 +90,20 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(404, {"error": "Unknown endpoint"})
 
+    def read_json(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= 1_000_000:
+            raise ValueError("Body must be 1 to 1000000 bytes")
+        payload = json.loads(self.rfile.read(length))
+        if not isinstance(payload, dict):
+            raise ValueError("Body must be a JSON object")
+        return payload
+
     def do_POST(self):
+        if self.path == "/api/review":
+            return self.review()
+        if self.path == "/api/scenario":
+            return self.run_scenario()
         if self.path != "/decide":
             return self.send_json(404, {"error": "Unknown endpoint"})
         self.connection.settimeout(10)
@@ -93,6 +131,57 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {**asdict(result), "action_executed": execute})
         except Exception:
             self.send_json(500, {"error": "Wrapper failed; inspect the decision implementation"})
+
+
+    def review(self):
+        """A person releases or rejects a HELD draft. Anti-rubber-stamp rules are enforced here, not only in the page:
+        the decision must exist in the audit log and be a HOLD; every flagged problem must be acknowledged; the reason
+        must be specific; the time between the gate's decision and the release is recorded, and very fast releases are
+        marked. Logged to review_log.jsonl, never actions.log (which must equal the gate's APPROVE decisions)."""
+        try:
+            p = self.read_json()
+            verdict, reason = p.get("verdict"), " ".join(str(p.get("reason", "")).split())
+            did = str(p.get("decision_id", ""))
+            if verdict not in ("release", "reject"):
+                raise ValueError("verdict must be release or reject")
+            row = next((r for r in tail_jsonl(LOG_DIR / "audit_log.jsonl", 5000) if r.get("decision_id") == did), None)
+            if row is None:
+                raise ValueError("unknown decision_id: only decisions the gate logged can be reviewed")
+            if row.get("decision") != "HOLD_FOR_REVIEW":
+                raise ValueError("only HOLD_FOR_REVIEW decisions can be released; a BLOCK needs an edited draft")
+            flags = row.get("findings") or []
+            acked = p.get("acknowledged") or []
+            if verdict == "release" and sorted(set(int(i) for i in acked)) != list(range(len(flags))):
+                raise ValueError(f"acknowledge each of the {len(flags)} flagged problem(s) before releasing")
+            if len(reason) < 15 or reason.lower().strip(".! ") in GENERIC:
+                raise ValueError("give a specific reason (what you checked and against what); 'ok' or 'looks good' is not a review")
+        except (ValueError, TypeError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        now = datetime.now(timezone.utc)
+        try:
+            dwell = round((now - datetime.fromisoformat(row["timestamp"])).total_seconds())
+        except (KeyError, ValueError):
+            dwell = None
+        entry = {"timestamp": now.isoformat(timespec="seconds"), "decision_id": did, "verdict": verdict, "reason": reason[:500],
+                 "reviewer": str(p.get("reviewer") or "support lead")[:80], "input": row.get("input", "")[:2000],
+                 "gate_reason": row.get("reason", "")[:500], "flags_acknowledged": len(flags) if verdict == "release" else 0,
+                 "seconds_since_gate_decision": dwell, "fast_release": verdict == "release" and dwell is not None and dwell < FAST_SECONDS,
+                 "outcome": "sent (mock), human-released" if verdict == "release" else "not sent, rejected by reviewer"}
+        with (LOG_DIR / "review_log.jsonl").open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+        return self.send_json(200, entry)
+
+    def run_scenario(self):
+        try:
+            p = self.read_json()
+            result = scenario.run(str(p.get("id")), p.get("preferences"))
+        except KeyError:
+            return self.send_json(404, {"error": "Unknown scenario"})
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            return self.send_json(500, {"error": f"Scenario failed: {type(e).__name__}"})
+        return self.send_json(200, result)
 
 
 def main():
