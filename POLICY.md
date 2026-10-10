@@ -46,6 +46,18 @@ The log records the seconds from hold to release and marks releases under 15 s a
 
 A correct email can still leave the customer on a worse deal. For the customer's plan and tenure, the gate lists the feasible offers. Policy rules are hard constraints, never traded. It scores the offers on the customer's cost, the customer's flexibility (refund window, commitment) and the company's 12-month revenue, using stakeholder weights from `preferences.json`. It then flags dominated offers, for example: "$49 list price when 15% loyalty is available on the same terms: $88.20/yr worse". **Advisory by default** (`welfare_mode`): it informs the reviewer and never changes the scored decision. The retention beliefs in `preferences.json` are placeholder stakeholder inputs, not data.
 
+## The aviation dispatch scenario (MOCK, the page's first tab)
+
+Fictional carrier, fictional flight, invented numbers; not operational guidance. It is here because it separates the two things a single trust score cannot separate: **limits** and **preferences**.
+
+- **Rules run first and are never traded.** The 45-minute IFR fuel reserve (modelled on 14 CFR 91.167(a)), the fuel limit and crew duty **remove** options before any scoring. No weighting, and no score however high, can buy an option past them.
+- **Preferences are stated before the AI recommends**, not after, so the goal cannot be chosen to suit the answer. Profiles: balanced, safety first, schedule first, cost first, or custom weights.
+- **Only then** are the surviving options compared on safety margin, delay and cost. The page shows the Pareto frontier, names every excluded option with its reason (rule-broken, or beaten on every count), and gives a release the gate itself accepts.
+- **Same gate, same four tests, same audit trail** as the email flow. `POST /api/dispatch` is logged to `audit_log.jsonl` under persona `aviation_dispatch`, and a signed release is recorded in `dispatch_actions.log`.
+- **Provenance.** Drafts H1-H6 were generated live in HarnessRouter's Arena by two different agents, with model calls billed through a TokenRouter key, then saved verbatim and replayed offline. The wrapper and the page make no network call.
+
+The judged run is still the customer support persona and the gated `send_email` action; this scenario is a second demonstration of the same decision layer.
+
 ## Decision-grade tests (from the opening talk)
 
 Every decision shows four checks:
