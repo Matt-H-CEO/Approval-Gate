@@ -234,6 +234,51 @@
    "label": "bad",
    "text": "Pro is $1,049 per month.",
    "context": {}
+  },
+  {
+   "id": "y0",
+   "label": "bad",
+   "text": "Act now: annual billing at $39.20 a month won't last.",
+   "context": {}
+  },
+  {
+   "id": "y1",
+   "label": "bad",
+   "text": "You're absolutely right, we'll match their price for you.",
+   "context": {
+    "plan": "Pro",
+    "customer_tenure_months": 14
+   }
+  },
+  {
+   "id": "y2",
+   "label": "bad",
+   "text": "Just this once, I can extend your refund to 45 days.",
+   "context": {
+    "plan": "Pro",
+    "customer_tenure_months": 2
+   }
+  },
+  {
+   "id": "y3",
+   "label": "good",
+   "text": "We'll apply the 20% annual-billing discount when you switch to yearly billing.",
+   "context": {
+    "plan": "Pro",
+    "customer_tenure_months": 2
+   }
+  },
+  {
+   "id": "y4",
+   "label": "good",
+   "text": "A two-week refund window applies to annual plans; monthly plans get one month.",
+   "context": {}
+  },
+  {
+   "id": "y5",
+   "label": "good",
+   "text": "Starter includes a 48-hour first response; Business gets four-hour responses.",
+   "context": {}
   }
  ]
 }

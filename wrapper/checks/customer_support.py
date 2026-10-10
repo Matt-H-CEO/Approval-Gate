@@ -29,8 +29,8 @@ _NEGATION = re.compile(r"\b(no|not|n't|without|never|isn't|doesn't|does not|don'
 _RESPONSE = re.compile(r"\b(respon\w*|repl(?:y|ies|ied)|get back to you|hear back|first reply|answer\w*|turnaround|sla)\b", re.I)
 _COMMIT = re.compile(r"\b(i'll|i will|we'll|we will|i promise|we promise|i guarantee|we guarantee|i can promise|make sure|going to|i've arranged|we've arranged|i can get)\b", re.I)
 _SCOPE = re.compile(r"\b(feature\w*|engineer\w*|ship\w*|release\w*|roadmap|build\w*|built|export\w*|integration\w*|fix\w*|bug\w*|deliver\w*|exception\w*|waive\w*|credit\w*|extend\w*|extension|custom|priorit\w*|free month|upgrade you|override)\b", re.I)
-_EXCEPTION = re.compile(r"\b(make an exception|one-time exception|waive (?:the|your|this)|override the policy|bend the rules|off the books)\b", re.I)
-_STRONG_HYPE = re.compile(r"\b(guarantee[ds]?|risk-free|unbeatable|you(?:'ll| will) love|best deal|lowest price ever|never pay again|100% satisf\w*)\b", re.I)
+_EXCEPTION = re.compile(r"\b(make an exception|one-time exception|waive (?:the|your|this)|override the policy|bend the rules|off the books|just this once|price[- ]match\w*|match (?:their|that|the competitor'?s?|any) (?:price|offer|deal))\b", re.I)
+_STRONG_HYPE = re.compile(r"\b(guarantee[ds]?|risk-free|unbeatable|you(?:'ll| will) love|best deal|lowest price ever|never pay again|100% satisf\w*|act now|won't last|limited[- ]time|hurry|don't miss (?:out|this)|once[- ]in[- ]a[- ]lifetime|best price ever)\b", re.I)
 _MILD_HYPE = re.compile(r"\b(amazing|incredible|awesome|fantastic|unbelievable|spectacular|life-changing|revolutionary|insane|mind-blowing|best ever)\b", re.I)
 
 
@@ -251,23 +251,38 @@ def check(text, context, sot):
             else:
                 res.verified.append(f"loyalty discount {loyal_pct:g}% (policies.json)")
 
-        # ---- rule 1: refunds ----------------------------------------------------------------
+        # ---- rule 1: refunds (each duration pairs with its nearest billing word) ---------------
         if re.search(r"\b(refund\w*|money back|money-back)\b", low):
-            billing = "annual" if re.search(r"\b(annual|annually|yearly)\b", low) else "monthly" if _MONTHLY_BILL.search(s) else None
-            allowed = {"annual": [refund_a], "monthly": [refund_m], None: [refund_m, refund_a]}[billing]
-            exp = " or ".join(f"{v:g} days" for v in allowed) + (f" ({billing} plans)" if billing else "")
-            spans = [(d["days"], d["text"]) for d in tdurs if d["unit"] != "hour" and d["topic"] in ("refund", None)]
-            spans += [({"year": 365, "month": 30, "week": 7, "quarter": 91}[f.group(1).lower()], f.group(0)) for f in _FIRST_PERIOD.finditer(s)]
+            marks = [(m.start(), m.end(), "annual") for m in re.finditer(r"\b(annual|annually|yearly)\b", s, re.I)]
+            marks += [(m.start(), m.end(), "monthly") for m in _MONTHLY_BILL.finditer(s)]
+
+            def billing_for(a, b):
+                best, bd = None, None
+                for ms, me, kind in marks:
+                    d = (a - me) if me <= a else (ms - b) * 1.3 if ms >= b else 0
+                    if d >= 0 and (bd is None or d < bd):
+                        best, bd = kind, d
+                return best
+
+            allowed_for = {"annual": [refund_a], "monthly": [refund_m], None: [refund_m, refund_a]}
+            spans = [(d["days"], d["text"], d["start"], d["end"]) for d in tdurs if d["unit"] != "hour" and d["topic"] in ("refund", None)]
+            spans += [({"year": 365, "month": 30, "week": 7, "quarter": 91}[f.group(1).lower()], f.group(0), f.start(), f.end())
+                      for f in _FIRST_PERIOD.finditer(s)]
             if _UNLIMITED.search(s):
+                kind = billing_for(*_UNLIMITED.search(s).span())
+                exp = " or ".join(f"{v:g} days" for v in allowed_for[kind]) + (f" ({kind} plans)" if kind else "")
                 res.findings.append(Finding(BLOCK, f"Refunds are limited to {exp}; the email promises no time limit.",
                                             "1 facts", _UNLIMITED.search(s).group(0), exp, "policies.json refunds", s))
-            elif spans:
-                bad = [t for d, t in spans if not any(tn.close(d, a, rel=0, abs_tol=0.5) for a in allowed)]
-                if bad:
-                    res.findings.append(Finding(BLOCK, f"Refund window is {exp}; the email says {bad[0]}.",
-                                                "1 facts", bad[0], exp, "policies.json refunds", s))
-                else:
-                    res.verified.append(f"refund window {exp} (policies.json)")
+            else:
+                for days, txt, a, b in spans:
+                    kind = billing_for(a, b)
+                    allowed = allowed_for[kind]
+                    exp = " or ".join(f"{v:g} days" for v in allowed) + (f" ({kind} plans)" if kind else "")
+                    if any(tn.close(days, v, rel=0, abs_tol=0.5) for v in allowed):
+                        res.verified.append(f"refund window {exp} (policies.json)")
+                    else:
+                        res.findings.append(Finding(BLOCK, f"Refund window is {exp}; the email says {txt}.",
+                                                    "1 facts", txt, exp, "policies.json refunds", s))
 
         # ---- rule 1: free trial -------------------------------------------------------------
         if "trial" in low:
