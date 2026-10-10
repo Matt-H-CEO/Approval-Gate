@@ -61,4 +61,5 @@ Every decision shows four checks:
 - Figures without a unit or plan ("it's 49 a month for you") rely on the customer's context; with no context they are HOLD, not checked.
 - It knows only what the two data files say. Anything else is HOLD (unverifiable) or passes if it contains no checkable figure.
 - The best-option weights and retention beliefs are inputs, not facts, so the trade-off view is only as good as the stakeholders' answers.
+- In the aviation lab, crew-duty buffer is a rule (enough duty for the flight), not an objective. One real agent (Claude Code) avoided max fuel because it leaves zero duty buffer, a trade-off our three objectives don't score yet.
 - The aviation scenario in the lab is a **mock**: fictional carrier and numbers. Only the 45-minute reserve mirrors 14 CFR 91.167(a). It is not operational guidance.

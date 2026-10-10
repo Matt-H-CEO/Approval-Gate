@@ -32,7 +32,7 @@ Every decision shows the opening talk's four decision-grade tests: Verified, Cal
 
 - **Claude (Anthropic)** wrote and tested the code under the team's direction during the 1:15–3:00 window. Planning documents with no code (a PRD, a backlog, a design note) were prepared before 1:15 and are not in this repo.
 - **Ezio**: the local mock is the judged signal; Ezio beta access was used for product feedback.
-- **HarnessRouter with a TokenRouter key** [NEEDS INPUT: say whether used, and how, e.g. "to generate the aviation drafts, replayed offline"]. No hosted service is called by the wrapper or the page.
+- **HarnessRouter with a TokenRouter key** (bring-your-own-key): we ran the aviation dispatch prompt in HarnessRouter's Arena with two agents (Claude Code with claude-sonnet-5.5, Codex with gpt-6.1-sol; model calls billed through TokenRouter), each asked for three goal-specific recommendations. The six replies are saved verbatim as drafts H1–H6 in `wrapper/scenarios/aviation_dispatch.json` and replayed offline. No hosted service is called by the wrapper or the page.
 
 ## Data
 

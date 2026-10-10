@@ -24,6 +24,8 @@ DIR = Path(__file__).resolve().parent / "scenarios"
 _LB = re.compile(r"(?P<n>\d[\d,]*(?:\.\d+)?)\s?(?:lb|lbs|pounds)\b", re.I)
 _MIN = re.compile(r"(?P<n>\d+(?:\.\d+)?)\s?(?:-\s?)?(?:minutes?|mins?)\b", re.I)
 _HOURS = re.compile(r"(?P<n>\d+(?:\.\d+)?)\s?(?:-\s?)?(?:hours?|hrs?)\b", re.I)
+_DERIVED_AFTER = re.compile(r"^[\s)\]]{0,2}(?:of fuel )?(below|above|over|under|short|more than|less than|of\b|margin|buffer|left|remaining|extra)", re.I)
+_DERIVED_BEFORE = re.compile(r"(totals?|plus|leaving|leaves|by|uses all|use of|=)\s*$", re.I)
 _COMPLIANCE = re.compile(r"\b(meets?|satisf\w+|covers?|complies|compliant|legal|plenty of)\b", re.I)
 
 
@@ -199,8 +201,15 @@ def check_rationale(scn, option_key, text):
                     continue
                 exp, src = expected(name)
                 label = name.replace("option.", "").replace("_", " ")
+                derived_cue = bool(_DERIVED_AFTER.search(s[x.end():x.end() + 18]) or _DERIVED_BEFORE.search(s[max(0, x.start() - 14):x.start()]))
+                other = (_other_option_value(scn, s, unit, val) or _named_fact_value(scn, s, unit, val)
+                         or _option_by_value(scn, s[x.end():x.end() + 12], unit, val))
                 if abs(val - exp) <= max(1.0, tol * abs(exp)):
                     res.verified.append(f"{label} {x.group(0)} ({src})")
+                elif other:
+                    res.verified.append(f"{x.group(0)} matches {other}")
+                elif derived_cue and _is_derived(scn, unit, val):
+                    res.verified.append(f"{x.group(0)} is a difference or total of known figures")
                 else:
                     res.findings.append(Finding(BLOCK, f"The rationale says {x.group(0)} for {label}; the data says {exp:,g} {unit}.",
                                                 "facts", x.group(0), f"{exp:,g} {unit}", src, s))
@@ -253,6 +262,58 @@ def category(flags, gate_decision, findings, dominated=False):
     if flags and gate_decision == HOLD:
         return "Ezio flag, gate holds for inspection"
     return "Ezio flags it and the gate blocks"
+
+
+def _known(scn, unit):
+    """Every base figure of a unit: facts plus every option's fields and computed margins."""
+    vals = [v["value"] for v in scn["facts"].values() if v["unit"] == unit]
+    for key, o in scn["options"].items():
+        if unit == "lb":
+            vals.append(o["fuel_lb"])
+        else:
+            vals += [o["delay_min"], metrics(scn, key)["safety_margin_min"]]
+            vals.append(_facts(scn)["flight_time_min"] + o["delay_min"])          # duty used
+            vals.append(_facts(scn)["crew_duty_remaining_min"] - o["delay_min"])  # duty left after delay
+    return [v for v in vals if v is not None]
+
+
+def _is_derived(scn, unit, val):
+    base = _known(scn, unit)
+    cands = set(base) | {abs(a - b) for a in base for b in base} | {a + b for a in base for b in base}
+    if unit == "lb":
+        cands |= {o["fuel_lb"] - _facts(scn)["required_fuel_lb"] for o in scn["options"].values()}
+    return any(abs(val - c) <= max(1.0, 0.01 * abs(c)) for c in cands)
+
+
+def _option_by_value(scn, after, unit, val):
+    """'15,400 lb options ...': a figure naming options by their value."""
+    if not re.match(r"^\s*options?\b", after, re.I):
+        return None
+    for key, o in scn["options"].items():
+        f = o["fuel_lb"] if unit == "lb" else o["delay_min"]
+        if abs(val - f) <= 0.5:
+            return f"options at {val:,g} {unit}"
+    return None
+
+
+def _named_fact_value(scn, sentence, unit, val):
+    """A figure exactly equal to another fact whose keyword the sentence uses (attribution was ambiguous)."""
+    low = sentence.lower()
+    for k, v in scn["facts"].items():
+        if v["unit"] == unit and abs(val - v["value"]) <= 0.5 and any(kw.lower() in low for kw in v["keywords"]):
+            return k.replace("_", " ")
+    return None
+
+
+def _other_option_value(scn, sentence, unit, val):
+    """A figure that belongs to another option the sentence names (e.g. 'max_fuel (+25 min)')."""
+    low = sentence.lower()
+    for key, o in scn["options"].items():
+        if key.lower() in low or key.replace("_", " ").lower() in low:
+            fields = [o["fuel_lb"]] if unit == "lb" else [o["delay_min"], metrics(scn, key)["safety_margin_min"]]
+            if any(abs(val - f) <= max(1.0, 0.06 * abs(f)) for f in fields):
+                return f"option {key}"
+    return None
 
 
 def _ezio_card(signals, error=None):
