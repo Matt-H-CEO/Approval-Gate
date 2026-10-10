@@ -198,12 +198,13 @@
   </ol>
 </header>
 <nav role="tablist" aria-label="Views">
-  <button role="tab" aria-selected="true" aria-controls="tab-dispatch" id="t-dispatch">Dispatch decision (MOCK)</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">1 · Check &amp; send</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">2 · Simulate samples</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">3 · Review queue &amp; audit</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">4 · Scenario lab: trade-offs</button>
+  <button role="tab" aria-selected="true" aria-controls="tab-dispatch" id="t-dispatch">1 · Dispatch decision (MOCK)</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">2 · Check &amp; send</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">3 · Simulate samples</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">4 · Review queue &amp; audit</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">5 · Scenario lab: trade-offs</button>
 </nav>
+<p class="hint" style="padding:8px 24px 0;margin:0">Tab 1 is a fictional aviation scenario. Tabs 2 to 4 are the judged flow: a customer support reply, the gated action <code>send_email</code>. Tab 5 compares several drafts at once.</p>
 <main>
 <div id="globalBanner" role="status" aria-live="polite"></div>
 
@@ -321,7 +322,7 @@
       <div><label for="scn">Scenario</label><select id="scn"></select></div>
       <div><button class="primary" id="labBtn">Run scenario</button></div>
     </div>
-    <p class="hint">Dry run: no email is sent and no release is signed. Each AI draft goes through the same gate as tab 1, next to the starter baseline (Ezio's overall tier only). Each proposed action is then scored against the stakeholders' preferences.</p>
+    <p class="hint">Dry run: no email is sent and no release is signed. Each AI draft goes through the same gate as the Check &amp; send tab, next to the starter baseline (a basic gate that only trusts Ezio's overall rating). Each proposed action is then scored against the stakeholders' preferences. Drafts H1 to H6 were not written by us: they were generated live in HarnessRouter's Arena by two different agents, with the model calls billed through a TokenRouter key, then saved verbatim and replayed offline so this page makes no network call.</p>
     <div id="labHead"></div>
   </div>
   <div id="labOut" aria-live="polite"></div>
@@ -457,7 +458,7 @@ function renderDecision(el, r, text, isFollowUp) {
     <p class="hint">Starter gate (Ezio's overall tier only) would say <strong>${esc(SHORT[base.decision] || '?')}</strong>${agrees ? ': same call.' : ': a different call.'}</p>
     ${welfareCard(r.welfare)}
     <details><summary>Full evidence (what the audit log records)</summary><ul class="tight">${(r.evidence || []).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></details>
-    ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (tab 3).</p>' : ''}
+    ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (the Review queue &amp; audit tab).</p>' : ''}
     ${(!isFollowUp && r.recommendation && r.recommendation.suggested_reply) ? '<p><button class="primary" id="recBtn">Check &amp; send recommended reply</button></p><div id="result2"></div>' : ''}`;
   const rb = el.querySelector('#recBtn');
   if (rb && !isFollowUp) rb.addEventListener('click', async () => {
@@ -739,6 +740,7 @@ async function loadDispatch() {
       '<p style="margin:0 0 6px"><strong>The situation.</strong> ' + esc(sc.situation || '') + '</p>' +
       '<p style="margin:0 0 6px"><strong>What could go wrong.</strong> A reason can sound confident and still be wrong. If nobody checks the numbers against the flight\'s own figures, a release that breaks a hard limit gets signed.</p>' +
       '<p style="margin:0 0 6px"><strong>What HoldPoint does.</strong> It checks every figure in the reason, applies the hard limits first, and only then compares what is left against the priorities you set. It never signs anything the limits rule out.</p>' +
+      '<p style="margin:0"><strong>Why one score is not enough.</strong> Safety, schedule and cost pull in different directions, so no single number can rank these options honestly. And the fuel minimum is a limit, not a preference: a high enough score must never buy its way past it. That is why the hard limits remove options first, and your priorities only choose among what is left.</p>' +
       (sc.disclaimer ? '<div class="banner info" style="margin-top:8px">' + esc(sc.disclaimer) + '</div>' : '');
     $('dispOption').innerHTML = (DISP.options || []).map(function (o) {
       return '<option value="' + esc(o.key) + '">' + esc(o.label) + '</option>';
