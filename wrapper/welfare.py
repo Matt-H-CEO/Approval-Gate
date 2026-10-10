@@ -25,11 +25,11 @@ def options(plan, tenure, plans, pol, beliefs=None):
     p, disc = plans[plan], pol["discounts"]
     refund_m, refund_a = pol["refunds"]["monthly_plans_days"], pol["refunds"]["annual_plans_days"]
     loyal = disc["loyalty"]
-    opts = [{"name": "list", "label": f"{plan} monthly at list price", "cost_pm": p["monthly"], "commit_months": 1, "refund_days": refund_m}]
+    opts = [{"name": "list", "label": f"{plan} at full price, paid monthly", "cost_pm": p["monthly"], "commit_months": 1, "refund_days": refund_m}]
     if tenure is not None and plan in loyal["applies_to"] and tenure >= loyal["min_tenure_months"]:
-        opts.append({"name": "loyalty", "label": f"{plan} monthly with {loyal['percent']:g}% loyalty discount",
+        opts.append({"name": "loyalty", "label": f"{plan} with the {loyal['percent']:g}% loyalty discount, paid monthly",
                      "cost_pm": round(p["monthly"] * (1 - loyal["percent"] / 100), 2), "commit_months": 1, "refund_days": refund_m})
-    opts.append({"name": "annual", "label": f"{plan} billed annually ({disc['annual_billing']['percent']:g}% off)",
+    opts.append({"name": "annual", "label": f"{plan} paid yearly ({disc['annual_billing']['percent']:g}% off)",
                  "cost_pm": p["annual_pm"], "commit_months": 12, "refund_days": refund_a})
     for o in opts:
         o["retention_belief"] = float(beliefs.get(o["name"], 1.0))
@@ -188,24 +188,33 @@ def recommend(plan, tenure, plans, pol, context=None):
     best = max(frontier, key=lambda o: (table[o["name"]], -o["cost_pm"]))
     others = [o for o in frontier if o is not best]
     alt = max(others, key=lambda o: table[o["name"]]) if others else None
-    trade = []
+    trade = ""
     if alt:
+        bits = []
         if alt["cost_pm"] < best["cost_pm"]:
-            trade.append(f"{alt['label']} is ${best['cost_pm'] - alt['cost_pm']:.2f}/mo cheaper")
-        if alt["refund_days"] > best["refund_days"] or alt["commit_months"] < best["commit_months"]:
-            trade.append(f"{alt['label']} keeps a {alt['refund_days']}-day refund window and {alt['commit_months']}-month commitment")
-    excluded = [f"{o['label']}: dominated by a cheaper offer on the same terms" for o in opts if not o["pareto_frontier"]]
+            bits.append(f"is ${best['cost_pm'] - alt['cost_pm']:.2f} a month cheaper")
+        elif alt["cost_pm"] > best["cost_pm"]:
+            bits.append(f"costs ${alt['cost_pm'] - best['cost_pm']:.2f} a month more")
+        if alt["commit_months"] > best["commit_months"]:
+            bits.append(f"locks the customer in for {alt['commit_months']} months")
+        elif alt["commit_months"] < best["commit_months"]:
+            bits.append("has no long contract")
+        if alt["refund_days"] != best["refund_days"]:
+            bits.append(f"has a {alt['refund_days']}-day refund window instead of {best['refund_days']}")
+        trade = f"Closest alternative: {alt['label']}. It " + ", ".join(bits[:-1]) + (" and " if len(bits) > 1 else "") + (bits[-1] if bits else "is similar") + "."
+    excluded = [f"{o['label']}: never the best choice, because another allowed offer gives the same terms for less" for o in opts if not o["pareto_frontier"]]
     if tenure is None or plan not in pol["discounts"]["loyalty"]["applies_to"] or (tenure or 0) < pol["discounts"]["loyalty"]["min_tenure_months"]:
-        excluded.append("Loyalty discount: not eligible (needs Pro or Business and 12+ months)")
-    excluded.append("Stacked discounts: not allowed by policy")
+        excluded.append("Loyalty discount: this customer doesn't qualify (it needs Pro or Business and 12+ months as a customer)")
+    excluded.append("Combining both discounts: not allowed by company policy")
     return {
         "preferences": pref,
         "choice": best["name"], "choice_label": best["label"], "cost_pm": best["cost_pm"],
         "suggested_reply": _reply_for(best, plan, tenure, pol) + (f" {_reply_for(alt, plan, tenure, pol)}" if alt and alt["name"] != "list" else ""),
-        "why": (f"Under '{pref['label']}' (weights: cost {w['customer_cost']:.0%}, flexibility {w['customer_flexibility']:.0%}, "
-                f"company revenue {w['company_revenue']:.0%}), {best['label']} scores {table[best['name']] * 100:.0f}/100, "
-                f"the best of the Pareto-optimal, policy-compliant offers for this customer."),
-        "tradeoff": "; ".join(trade),
+        "why": (f"With these priorities (price {w['customer_cost']:.0%}, flexibility {w['customer_flexibility']:.0%}, "
+                f"company revenue {w['company_revenue']:.0%}), the best offer for this customer is {best['label']}. It follows every policy, "
+                f"and no other allowed offer is better on price, flexibility and revenue at once. "
+                f"It scores {table[best['name']] * 100:.0f} out of 100 for this weighting."),
+        "tradeoff": trade,
         "frontier": [{"name": o["name"], "label": o["label"], "cost_pm": o["cost_pm"], "commit_months": o["commit_months"],
                       "refund_days": o["refund_days"], "score": table[o["name"]]} for o in frontier],
         "excluded": excluded,

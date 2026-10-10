@@ -70,14 +70,14 @@ def guardrails(scn, key):
     for g in scn["guardrails"]:
         if g["type"] == "min_value":
             ok = o[g["option_field"]] >= f[g["fact"]]
-            detail = f"{o[g['option_field']]:,} vs required {f[g['fact']]:,}"
+            detail = f"{o[g['option_field']]:,} lb on board vs {f[g['fact']]:,} lb needed"
         elif g["type"] == "max_value":
             ok = o[g["option_field"]] <= f[g["fact"]]
-            detail = f"{o[g['option_field']]:,} vs limit {f[g['fact']]:,}"
+            detail = f"{o[g['option_field']]:,} lb vs a {f[g['fact']]:,} lb limit"
         elif g["type"] == "duty":
             left = f[g["remaining_fact"]] - o.get("delay_min", 0)
             ok = bool(o.get("fresh_crew")) or left >= f[g["needed_fact"]]
-            detail = "fresh crew" if o.get("fresh_crew") else f"{left:g} min of duty left after the delay vs {f[g['needed_fact']]:g} min needed"
+            detail = "fresh crew" if o.get("fresh_crew") else f"{left:g} minutes of work time left after the delay vs {f[g['needed_fact']]:g} needed"
         else:
             continue
         out.append({"id": g["id"], "label": g["label"], "ok": ok, "detail": detail, "source": g.get("source", "")})
@@ -200,7 +200,8 @@ def check_rationale(scn, option_key, text):
                     res.unchecked.append(f"{x.group(0)} (no matching fact)")
                     continue
                 exp, src = expected(name)
-                label = name.replace("option.", "").replace("_", " ")
+                label = (facts[name].get("plain") if name in facts else None) or {"option.fuel_lb": "fuel load", "option.delay_min": "delay",
+                         "option.safety_margin_min": "safety cushion"}.get(name, name.replace("option.", "").replace("_", " "))
                 derived_cue = bool(_DERIVED_AFTER.search(s[x.end():x.end() + 18]) or _DERIVED_BEFORE.search(s[max(0, x.start() - 14):x.start()]))
                 other = (_other_option_value(scn, s, unit, val) or _named_fact_value(scn, s, unit, val)
                          or _option_by_value(scn, s[x.end():x.end() + 12], unit, val))
@@ -211,19 +212,19 @@ def check_rationale(scn, option_key, text):
                 elif derived_cue and _is_derived(scn, unit, val):
                     res.verified.append(f"{x.group(0)} is a difference or total of known figures")
                 else:
-                    res.findings.append(Finding(BLOCK, f"The rationale says {x.group(0)} for {label}; the data says {exp:,g} {unit}.",
+                    res.findings.append(Finding(BLOCK, f"The AI says {x.group(0)} for the {label}; the flight data says {exp:,g} {unit}.",
                                                 "facts", x.group(0), f"{exp:,g} {unit}", src, s))
         low = s.lower()
         for w in scn.get("hold_language", []):
             if re.search(r"\b" + re.escape(w) + r"\b", low):
-                res.findings.append(Finding(HOLD, f"Overconfident language (\"{w}\") in a safety decision: a person must confirm.",
+                res.findings.append(Finding(HOLD, f"Sounds overconfident (\"{w}\"). In a safety decision, a person should confirm.",
                                             "overconfidence", w, "calibrated wording", "scenario hold_language", s))
                 break
     for g in guardrails(scn, option_key):
         if not g["ok"]:
             claims_ok = bool(_COMPLIANCE.search(norm))
-            res.findings.append(Finding(BLOCK, f"Guardrail broken: {g['label']} ({g['detail']})."
-                                        + (" The rationale claims it is fine." if claims_ok else ""),
+            res.findings.append(Finding(BLOCK, f"Breaks a rule: {g['label']} ({g['detail']})."
+                                        + (" The AI says it's fine; it isn't." if claims_ok else ""),
                                         "guardrail", o["label"], g["label"], g["source"], text))
         else:
             res.verified.append(f"guardrail: {g['label']} ({g['detail']})")
@@ -252,16 +253,16 @@ def ezio_flags(signals):
 def category(flags, gate_decision, findings, dominated=False):
     substantive = [f for f in findings if f.get("level") == BLOCK and f.get("rule") not in ("overconfidence", "4 hype")]
     if gate_decision == APPROVE and dominated:
-        return "Approved, but not the best option: a better one exists on every objective"
+        return "Allowed, but not the best choice: another option is better on every count"
     if not flags and gate_decision == APPROVE:
-        return "Clean: Ezio and the gate agree"
+        return "Fine: Ezio and HoldPoint both approve"
     if not flags and gate_decision != APPROVE:
-        return "Ezio clean, gate catches it: confident mistake"
+        return "Ezio saw no problem; HoldPoint caught a confident mistake"
     if flags and substantive:
-        return "Ezio flags the wording, not enough: the gate finds the real problem"
+        return "Ezio flagged the wording but missed the real problem; HoldPoint caught it"
     if flags and gate_decision == HOLD:
-        return "Ezio flag, gate holds for inspection"
-    return "Ezio flags it and the gate blocks"
+        return "Ezio raised a flag; HoldPoint holds it for a person to check"
+    return "Ezio and HoldPoint both caught it"
 
 
 def _known(scn, unit):
@@ -418,9 +419,9 @@ def _release_text(scn, row):
     f, o, m = _facts(scn), scn["options"][row["key"]], row["metrics"]
     used = f["flight_time_min"] + o["delay_min"]
     label = o["label"][0].lower() + o["label"][1:]
-    return (f"Recommend: {label}. That puts {o['fuel_lb']:,} lb on board, {m['safety_margin_min']:.0f} minutes above the "
-            f"{f['required_fuel_lb']:,} lb legal minimum including the 45-minute reserve. "
-            f"Crew duty use is {used:g} of {f['crew_duty_remaining_min']:g} minutes.")
+    return (f"Recommend: {label}. That puts {o['fuel_lb']:,} lb on board, {m['safety_margin_min']:.0f} minutes of extra flying beyond the "
+            f"{f['required_fuel_lb']:,} lb legal minimum, which already includes the 45-minute reserve. "
+            f"The crew uses {used:g} of its {f['crew_duty_remaining_min']:g} remaining duty minutes.")
 
 
 def dispatch_recommendation(scn, preferences):
@@ -431,21 +432,23 @@ def dispatch_recommendation(scn, preferences):
     front = [r for r in table if r["feasible"] and r.get("pareto_frontier")]
     runner = max((r for r in front if r is not best), key=lambda r: p["utility"][r["key"]], default=None)
     w = p["weights"]
-    excluded = [{"label": r["label"], "reason": "breaks a rule: " + "; ".join(g["label"] for g in r["guardrails"] if not g["ok"])}
+    excluded = [{"label": r["label"], "reason": "Not allowed: breaks the rule \u201c" + "; ".join(g["label"] for g in r["guardrails"] if not g["ok"]) + "\u201d"}
                 for r in table if not r["feasible"]]
-    excluded += [{"label": r["label"], "reason": f"dominated by {next(x['label'] for x in table if x['key'] == r['dominated_by'])}"}
-                 for r in table if r["feasible"] and r.get("dominated_by")]
+    excluded += [{"label": r["label"], "reason": "Never the best choice: \u201c" + next(x['label'] for x in table if x['key'] == r['dominated_by'])
+                  + "\u201d is at least as safe, sooner and cheaper"} for r in table if r["feasible"] and r.get("dominated_by")]
     trade = ""
     if runner:
         bm, rm = best["metrics"], runner["metrics"]
-        trade = (f"Next best: {runner['label']} ({rm['safety_margin_min']:.0f} min margin, +{rm['delay_min']:.0f} min, ${rm['cost_usd']:,.0f}) "
-                 f"vs the choice ({bm['safety_margin_min']:.0f} min margin, +{bm['delay_min']:.0f} min, ${bm['cost_usd']:,.0f}).")
+        trade = (f"Closest alternative: {runner['label'][0].lower() + runner['label'][1:]}. That gives {rm['safety_margin_min']:.0f} minutes of extra fuel "
+                 f"instead of {bm['safety_margin_min']:.0f}, leaves {rm['delay_min']:.0f} minutes late instead of {bm['delay_min']:.0f}, "
+                 f"and costs ${rm['cost_usd']:,.0f} instead of ${bm['cost_usd']:,.0f}.")
     return {
         "preferences": {"profile": key, "label": p["label"], "weights": w, "why": profiles[key].get("why", ""),
                         "stated": bool(preferences)},
         "choice": best["key"], "choice_label": best["label"],
-        "why": (f"Under '{p['label']}' (safety {w['safety_margin_min']:.0%}, logistics {w['delay_min']:.0%}, commercial {w['cost_usd']:.0%}), "
-                f"{best['label']} scores {p['utility'][best['key']] * 100:.0f}/100: the best Pareto-optimal option that breaks no rule."),
+        "why": (f"With these priorities (safety {w['safety_margin_min']:.0%}, schedule {w['delay_min']:.0%}, cost {w['cost_usd']:.0%}), "
+                f"the best choice is: {best['label'][0].lower() + best['label'][1:]}. It breaks no rule, and no other legal option is "
+                f"better on safety, schedule and cost at once. It scores {p['utility'][best['key']] * 100:.0f} out of 100 for this weighting."),
         "tradeoff": trade,
         "frontier": [{"key": r["key"], "label": r["label"], "metrics": r["metrics"], "score": p["utility"].get(r["key"])} for r in front],
         "excluded": excluded,
@@ -484,7 +487,7 @@ def decide_dispatch(option, rationale, preferences=None, context=None, audit_log
     r.preferences = r.recommendation["preferences"]
     r.ezio_flags, r.issues = core.issue_ledger(r, check)
     for i in r.issues:  # HoldPoint's overconfidence rule overlaps Ezio's tone/bias/agreement flags
-        if i["caught_by"] == "HoldPoint only" and "Overconfident" in i["issue"] and any(k in " ".join(r.ezio_flags) for k in ("Tone", "Bias", "Agreement")):
+        if i["caught_by"] == "HoldPoint only" and "overconfident" in i["issue"].lower() and any(k in " ".join(r.ezio_flags) for k in ("Tone", "Bias", "Agreement")):
             i["caught_by"] = "Ezio + HoldPoint"
     if any(i["caught_by"] == "Ezio + HoldPoint" for i in r.issues):
         r.issues = [i for i in r.issues if not (i["caught_by"] == "Ezio" and i["source"] == "Ezio dimensions")]

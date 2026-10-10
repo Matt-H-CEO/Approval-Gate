@@ -1,9 +1,9 @@
 {
   "id": "aviation_dispatch",
   "kind": "options",
-  "title": "Dispatch decision: fog forecast at the destination",
-  "disclaimer": "MOCK SCENARIO. Fictional carrier, fictional flight and fictional numbers for a demo; not operational guidance. The 45-minute IFR fuel reserve is modeled on 14 CFR 91.167(a). All other values are invented.",
-  "situation": "Kestrel Air (fictional) flight KA 212, SFO to SEA, scheduled out in 15 minutes. Fog is forecast at SEA around arrival time, so the release must carry fuel for an alternate (PDX). The AI dispatch assistant proposes an action and a rationale; the gate decides whether the dispatcher may sign it as-is.",
+  "title": "Should this flight leave now? A dispatch decision in fog",
+  "disclaimer": "Practice scenario: made-up airline, made-up numbers, built for this demo. Not real flight-planning advice. The 45-minute fuel reserve mirrors the real US rule (14 CFR 91.167).",
+  "situation": "Kestrel Air flight KA 212 (a made-up airline) is about to fly from San Francisco to Seattle. Fog may close Seattle's airport around the time it arrives, so the plane must carry enough fuel to fly on to Portland instead and still land with a safety reserve. An AI assistant recommends what to do and explains why. HoldPoint decides whether the dispatcher, the person who signs off every flight, can approve that recommendation as written.",
   "action": "sign_dispatch_release",
   "facts": {
     "planned_fuel_lb": {
@@ -15,7 +15,8 @@
         "as planned",
         "on time with"
       ],
-      "source": "flight plan (fictional)"
+      "source": "flight plan (fictional)",
+      "plain": "fuel already loaded"
     },
     "trip_fuel_lb": {
       "value": 9800,
@@ -23,7 +24,8 @@
       "keywords": [
         "trip"
       ],
-      "source": "flight plan (fictional)"
+      "source": "flight plan (fictional)",
+      "plain": "fuel for the trip to Seattle"
     },
     "alternate_fuel_lb": {
       "value": 2600,
@@ -32,7 +34,8 @@
         "alternate",
         "pdx"
       ],
-      "source": "flight plan (fictional)"
+      "source": "flight plan (fictional)",
+      "plain": "fuel to divert to Portland"
     },
     "reserve_fuel_lb": {
       "value": 2800,
@@ -40,7 +43,8 @@
       "keywords": [
         "reserve"
       ],
-      "source": "45 min at normal cruise (fictional burn)"
+      "source": "45 min at normal cruise (fictional burn)",
+      "plain": "reserve fuel"
     },
     "reserve_minutes": {
       "value": 45,
@@ -48,7 +52,8 @@
       "keywords": [
         "reserve"
       ],
-      "source": "14 CFR 91.167(a): fly 45 minutes at normal cruising speed after reaching the alternate"
+      "source": "14 CFR 91.167(a): fly 45 minutes at normal cruising speed after reaching the alternate",
+      "plain": "legal fuel reserve"
     },
     "required_fuel_lb": {
       "value": 15200,
@@ -60,7 +65,8 @@
         "minimum",
         "legal"
       ],
-      "source": "trip + alternate + reserve"
+      "source": "trip + alternate + reserve",
+      "plain": "legal minimum fuel"
     },
     "cruise_burn_lb_per_min": {
       "value": 62.2,
@@ -68,7 +74,8 @@
       "keywords": [
         "burn"
       ],
-      "source": "fictional"
+      "source": "fictional",
+      "plain": "fuel burned per minute"
     },
     "max_fuel_lb": {
       "value": 19000,
@@ -78,7 +85,8 @@
         "maximum fuel",
         "max fuel"
       ],
-      "source": "fictional weight limit"
+      "source": "fictional weight limit",
+      "plain": "fuel weight limit"
     },
     "flight_time_min": {
       "value": 125,
@@ -89,7 +97,8 @@
         "en route",
         "flight"
       ],
-      "source": "flight plan (fictional)"
+      "source": "flight plan (fictional)",
+      "plain": "flight time"
     },
     "crew_duty_remaining_min": {
       "value": 150,
@@ -97,13 +106,14 @@
       "keywords": [
         "duty"
       ],
-      "source": "crew schedule (fictional)"
+      "source": "crew schedule (fictional)",
+      "plain": "crew's remaining work time"
     }
   },
   "objectives": [
     {
       "key": "safety_margin_min",
-      "label": "Safety: fuel margin above the legal minimum (minutes of flying)",
+      "label": "Safety: extra fuel beyond the legal minimum (minutes of flying)",
       "higher_is_better": true,
       "stakeholder": "Safety (dispatcher)",
       "compute": {
@@ -117,11 +127,12 @@
         "extra",
         "above the legal minimum"
       ],
-      "need": "safety"
+      "need": "safety",
+      "short": "Safety cushion (min)"
     },
     {
       "key": "delay_min",
-      "label": "Logistics: departure delay (minutes)",
+      "label": "Schedule: how late the flight leaves (minutes)",
       "higher_is_better": false,
       "stakeholder": "Operations control",
       "compute": {
@@ -134,11 +145,12 @@
         "holding",
         "wait"
       ],
-      "need": "logistics"
+      "need": "logistics",
+      "short": "Delay (min)"
     },
     {
       "key": "cost_usd",
-      "label": "Commercial: extra cost (USD)",
+      "label": "Cost: extra spend on fuel and crew (USD)",
       "higher_is_better": false,
       "stakeholder": "Commercial / finance",
       "compute": {
@@ -148,7 +160,8 @@
         "cost",
         "costs"
       ],
-      "need": "commercial"
+      "need": "commercial",
+      "short": "Extra cost ($)"
     }
   ],
   "guardrails": [
@@ -157,7 +170,7 @@
       "type": "min_value",
       "option_field": "fuel_lb",
       "fact": "required_fuel_lb",
-      "label": "Fuel on board must cover trip + alternate + 45-minute reserve",
+      "label": "Enough fuel to reach Seattle, divert to Portland and still have 45 minutes left",
       "source": "14 CFR 91.167(a) (reserve); fictional numbers"
     },
     {
@@ -165,7 +178,7 @@
       "type": "max_value",
       "option_field": "fuel_lb",
       "fact": "max_fuel_lb",
-      "label": "Fuel must stay within the weight limit",
+      "label": "Fuel within the plane's weight limit",
       "source": "fictional"
     },
     {
@@ -173,48 +186,48 @@
       "type": "duty",
       "remaining_fact": "crew_duty_remaining_min",
       "needed_fact": "flight_time_min",
-      "label": "Crew duty left after any delay must cover the flight time",
+      "label": "Crew has enough legal work time left for the whole flight, including any delay",
       "source": "fictional duty rule"
     }
   ],
   "options": {
     "depart_planned": {
-      "label": "Depart on time with planned fuel (14,000 lb)",
+      "label": "Leave on time with the fuel already loaded (14,000 lb)",
       "fuel_lb": 14000,
       "delay_min": 0,
       "cost_usd": 0,
       "fresh_crew": false
     },
     "min_legal_topup": {
-      "label": "Top up to 15,400 lb, depart 10 min late",
+      "label": "Add a little fuel (to 15,400 lb) and leave 10 minutes late",
       "fuel_lb": 15400,
       "delay_min": 10,
       "cost_usd": 300,
       "fresh_crew": false
     },
     "extra_fuel": {
-      "label": "Load 17,000 lb, depart 15 min late",
+      "label": "Add more fuel (to 17,000 lb) and leave 15 minutes late",
       "fuel_lb": 17000,
       "delay_min": 15,
       "cost_usd": 900,
       "fresh_crew": false
     },
     "max_fuel": {
-      "label": "Load 18,500 lb, depart 25 min late",
+      "label": "Fill up (to 18,500 lb) and leave 25 minutes late",
       "fuel_lb": 18500,
       "delay_min": 25,
       "cost_usd": 1900,
       "fresh_crew": false
     },
     "hold_60": {
-      "label": "Hold 60 min for the fog to lift (15,400 lb)",
+      "label": "Wait an hour for the fog to clear",
       "fuel_lb": 15400,
       "delay_min": 60,
       "cost_usd": 2600,
       "fresh_crew": false
     },
     "swap_crew_90": {
-      "label": "Swap crews, depart 90 min late (15,400 lb)",
+      "label": "Swap in a fresh crew and leave 90 minutes late",
       "fuel_lb": 15400,
       "delay_min": 90,
       "cost_usd": 7800,
@@ -223,40 +236,40 @@
   },
   "profiles": {
     "safety_first": {
-      "label": "Safety first (dispatcher)",
+      "label": "Safety first (the dispatcher)",
       "weights": {
         "safety_margin_min": 0.6,
         "delay_min": 0.2,
         "cost_usd": 0.2
       },
-      "why": "Largest margin above the legal minimum when the destination is marginal."
+      "why": "Wants the biggest fuel cushion when the weather is uncertain."
     },
     "logistics_first": {
-      "label": "Logistics first (ops control)",
+      "label": "Schedule first (operations)",
       "weights": {
         "safety_margin_min": 0.2,
         "delay_min": 0.6,
         "cost_usd": 0.2
       },
-      "why": "Protect the schedule: aircraft and crew rotations, connections."
+      "why": "Wants the plane and crew on time so later flights aren't disrupted."
     },
     "commercial_first": {
-      "label": "Commercial first (finance)",
+      "label": "Cost first (finance)",
       "weights": {
         "safety_margin_min": 0.2,
         "delay_min": 0.2,
         "cost_usd": 0.6
       },
-      "why": "Fuel and crew cost across the day."
+      "why": "Wants to keep fuel and crew costs down."
     },
     "balanced": {
-      "label": "Balanced: safety 50 / logistics 25 / commercial 25",
+      "label": "Balanced (safety counts most)",
       "weights": {
         "safety_margin_min": 0.5,
         "delay_min": 0.25,
         "cost_usd": 0.25
       },
-      "why": "Safety first among equals, the others still count."
+      "why": "Safety gets half the weight; schedule and cost share the rest."
     }
   },
   "default_profile": "balanced",
@@ -385,17 +398,21 @@
     }
   ],
   "option_fuel_keywords": [
-    "top",
-    "topping",
-    "load",
-    "loading",
-    "uplift",
+    "add",
     "carry",
     "carrying",
-    "with",
-    "on board",
+    "fill",
     "fuel up",
-    "fueling"
+    "fueling",
+    "load",
+    "loading",
+    "on board",
+    "puts",
+    "to",
+    "top",
+    "topping",
+    "uplift",
+    "with"
   ],
-  "rules_note": "Rules are hard constraints, not weights: an option that breaks the fuel minimum (14 CFR 91.167 45-minute reserve), the fuel limit or crew duty is removed before any trade-off. Safety margin above the minimum is what stakeholders trade."
+  "rules_note": "Rules are never traded away. Any option that breaks one is removed before options are compared: the plane must carry enough fuel to reach Seattle, divert to Portland and still have 45 minutes left; it can't carry more fuel than its weight limit; and the crew must have enough legal work time left for the whole flight, including any delay."
 }

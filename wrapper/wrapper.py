@@ -189,7 +189,8 @@ def _consequence(level, check, signals_claims, persona):
     blocks = [f for f in check.findings if f.level == BLOCK]
     if level == BLOCK and blocks:
         f = blocks[0]
-        return f"If sent, {who} would read \"{f.stated or f.span}\", but {f.source or 'company data'} says {f.expected or 'otherwise'}."
+        src = "the price sheet" if "price_sheet" in (f.source or "") else "company policy" if "policies" in (f.source or "") else "company data"
+        return f"If sent, {who} would be told \"{f.stated or f.span}\", but {src} says {f.expected or 'otherwise'}."
     if level == BLOCK:
         bad = next((c.get("text") for c in signals_claims if c.get("verdict") == "contradicted"), None)
         return f"If sent, {who} would read a claim Ezio's fact-check contradicts" + (f": \"{bad}\"." if bad else ".")
@@ -326,13 +327,13 @@ def four_tests(r):
     if r.ezio_status != "ok":
         unsure.append(f"Ezio {r.ezio_status}")
     return {
-        "verified": {"ok": not blocks, "text": (f"{len(cov.get('checked', []))} claim(s) matched company data or Ezio's fact-check; "
-                                                 f"{len(blocks)} contradicted.")},
+        "verified": {"ok": not blocks, "text": (f"{len(cov.get('checked', []))} fact(s) checked and correct; "
+                                                 f"{len(blocks)} wrong.")},
         "calibrated": {"ok": True, "text": ("Held back: " + "; ".join(dict.fromkeys(f["message"] for f in holds))[:300] if holds and r.decision == HOLD
                                              else ("Could not check: " + "; ".join(unsure) if unsure else "Nothing left unchecked that this persona's rules cover."))},
-        "overseeable": {"ok": True, "text": ("A person must review before anything is sent; the problem text is marked and the consequence stated."
-                                              if r.decision != APPROVE else "Sent automatically: every checked figure matched. Spot-check from the audit trail.")},
-        "auditable": {"ok": True, "text": f"Decision {r.decision_id} logged with the input, Ezio's full response, evidence, reason and time."},
+        "overseeable": {"ok": True, "text": ("Nothing goes out until a person reviews it. The problem text is marked and the consequence is spelled out."
+                                              if r.decision != APPROVE else "Approved automatically because every checked fact matched. A person can still review it in the audit log.")},
+        "auditable": {"ok": True, "text": f"Saved to the audit log as decision {r.decision_id}: the draft, Ezio's report, every issue, the preferences used and the time."},
     }
 
 
