@@ -1,79 +1,383 @@
 <!doctype html>
-<!--
-  YOUR PERSONA PAGE. This is a skeleton; the UI is yours to design (25 points, optional).
-  Any approach is fine: edit this file, replace it with a built React/Vue/Svelte app in this folder,
-  or write plain JS. wrapper/serve.py serves everything in wrapper/ui/, with persona.html at "/".
-  Offline only: no CDNs or external services at demo time.
-
-  WHAT THE PAGE MUST DO (what judges score)
-    1. SEND AN INPUT, GET A RESPONSE: a draft goes to POST /decide (your wrapper), and the page shows the
-       decision, the reason, the evidence, and whether the mock action ran.
-    2. SIMULATE THE ACTION FROM A TEST INPUT: let the user pick a sample input (GET /api/samples?persona=...),
-       send it, and show the gate working: APPROVE -> the action ran; HOLD/BLOCK -> the action did NOT run.
-    3. Make it usable by someone in your persona's job: clear risk, errors shown plainly, a review step.
-
-  RULES
-    - Decisions come only from POST /decide. Do not decide, call the mock, or run the action in the browser.
-    - Latest test-run results are NOT your job: run `python3 gate.py results` for the color-coded viewer.
--->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TODO: your page title</title>
+<title>Reply Gate · Lumen Cloud Support</title>
 <style>
-  /* TODO: design it. Think about who uses this: the person who is about to send / submit / publish. */
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
-  textarea { width: 100%; min-height: 8rem; }
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #dedbd2;
+    --ok: #1f7a4d; --ok-bg: #e5f3ea; --hold: #8a5a00; --hold-bg: #fdf1d6; --bad: #b42318; --bad-bg: #fde8e6;
+    --accent: #2f4fb5; --accent-bg: #e8ecfa; --mark: #ffe08a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 18px 24px 0; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  nav { display: flex; gap: 4px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  nav button { border: 1px solid var(--line); border-bottom: none; background: #ecebe6; padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; color: var(--ink); }
+  nav button[aria-selected="true"] { background: var(--panel); font-weight: 600; }
+  main { padding: 20px 24px 60px; max-width: 1200px; }
+  section[hidden] { display: none; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .col { flex: 1 1 340px; min-width: 0; }
+  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; }
+  textarea { width: 100%; min-height: 110px; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+  select, input[type=number], input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+  button.primary { background: var(--accent); color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); padding: 7px 12px; border-radius: 8px; font: inherit; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button:focus-visible, nav button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .hint { color: var(--muted); font-size: 13px; }
+  .badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; padding: 8px 14px; border-radius: 8px; }
+  .APPROVE { color: var(--ok); background: var(--ok-bg); }
+  .HOLD_FOR_REVIEW { color: var(--hold); background: var(--hold-bg); }
+  .BLOCK { color: var(--bad); background: var(--bad-bg); }
+  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-right: 6px; white-space: nowrap; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin: 10px 0; font-weight: 600; }
+  .banner.err { background: var(--bad-bg); color: var(--bad); }
+  .banner.warn { background: var(--hold-bg); color: var(--hold); }
+  .banner.info { background: var(--accent-bg); color: var(--accent); }
+  mark.bad { background: var(--mark); border-bottom: 2px solid var(--bad); padding: 0 2px; }
+  .draft { white-space: pre-wrap; background: #faf9f6; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .kv { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; font-size: 14px; }
+  .kv dt { color: var(--muted); }
+  .kv dd { margin: 0; }
+  .meter { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 3px 0; }
+  .meter .bar { flex: 0 0 160px; height: 8px; background: #eceae4; border-radius: 4px; position: relative; overflow: hidden; }
+  .meter .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+  .meter .bar i { position: absolute; left: 60%; top: -2px; bottom: -2px; width: 2px; background: var(--bad); }
+  ul.tight { margin: 4px 0; padding-left: 18px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: #f3f2ee; font-weight: 600; }
+  td.best { font-weight: 700; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
+  .surface td { text-align: center; font-size: 12px; border: 1px solid #fff; }
+  .w0 { background: #dfe7fb; } .w1 { background: #fde9c8; } .w2 { background: #d9f0e2; } .w3 { background: #f3dde8; } .w4 { background: #e6e6e6; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 8px; }
+  .muted { color: var(--muted); }
+  .sr { position: absolute; left: -9999px; }
 </style>
 </head>
 <body>
-<h1>TODO: name this screen for your persona's job</h1>
+<header>
+  <h1>Reply Gate: check an AI-drafted reply before it reaches the customer</h1>
+  <p>Lumen Cloud support (fictional). Every draft is checked against the price sheet and policies, scored by Ezio, and sent only when the gate says APPROVE. Runs fully offline on this laptop.</p>
+</header>
+<nav role="tablist" aria-label="Views">
+  <button role="tab" aria-selected="true" aria-controls="tab-send" id="t-send">1 · Check &amp; send</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">2 · Simulate samples</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">3 · Review queue &amp; audit</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">4 · Scenario lab: trade-offs</button>
+</nav>
+<main>
+<div id="globalBanner" role="status" aria-live="polite"></div>
 
-<!-- TODO (1): inputs. Text is required; context is a JSON object your persona rules may use. -->
-<label for="text">Draft</label>
-<textarea id="text"></textarea>
-<button id="check">Check</button>
+<!-- 1 · Check & send -------------------------------------------------------------------------->
+<section id="tab-send" role="tabpanel" aria-labelledby="t-send">
+  <div class="row">
+    <div class="col panel">
+      <label for="draft">AI-drafted email to the customer</label>
+      <textarea id="draft" maxlength="20000" placeholder="Paste or type the draft reply…"></textarea>
+      <div class="hint"><span id="count">0</span> / 20,000 characters</div>
+      <div class="row" style="margin-top:10px;gap:12px;align-items:flex-end">
+        <div><label for="plan">Customer's plan</label>
+          <select id="plan"><option value="">Unknown</option><option>Starter</option><option selected>Pro</option><option>Business</option><option>Enterprise</option></select></div>
+        <div><label for="tenure">Tenure (months)</label><input id="tenure" type="number" min="0" max="600" value="18" style="width:90px"></div>
+        <div><button class="primary" id="sendBtn">Check &amp; send</button></div>
+      </div>
+      <p class="hint">The gate, not this page, makes every decision. "Send" means the mock <code>send_email</code> runs only when the gate approves.</p>
+    </div>
+    <div class="col panel" id="result" aria-live="polite"><p class="muted">The decision, the reason, the evidence and whether the email was sent appear here.</p></div>
+  </div>
+</section>
 
-<!-- TODO (2): sample picker. Fill this from /api/samples (see loadSamples below). -->
-<select id="samples"></select>
-<button id="simulate">Simulate with this sample</button>
+<!-- 2 · Simulate ------------------------------------------------------------------------------>
+<section id="tab-sim" role="tabpanel" aria-labelledby="t-sim" hidden>
+  <div class="panel">
+    <p>Pick sample drafts and run them through the real gate side by side. Approved drafts run the mock <code>send_email</code>; held and blocked drafts never reach it.</p>
+    <div id="sampleList" class="hint">Loading samples…</div>
+    <div style="margin-top:10px"><button class="primary" id="simBtn">Run selected side by side</button> <button class="secondary" id="simPick">Pick a good, a held and a blocked example</button></div>
+  </div>
+  <div id="simOut" class="grid-cards" aria-live="polite"></div>
+</section>
 
-<!-- TODO (3): present the result for a human, not as raw JSON. Replace this <pre>. -->
-<pre id="out"></pre>
+<!-- 3 · Review & audit ------------------------------------------------------------------------>
+<section id="tab-review" role="tabpanel" aria-labelledby="t-review" hidden>
+  <div class="panel">
+    <h2 style="margin-top:0;font-size:17px">Held for review</h2>
+    <p class="hint">Drafts the gate held in this session. A person releases or rejects each one with a reason, and the reason is logged. Blocked drafts can't be released; they need an edit.</p>
+    <div id="queue"><p class="muted">Nothing held yet.</p></div>
+  </div>
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;font-size:17px">Audit trail</h2><button class="secondary" id="auditBtn">Refresh</button></div>
+    <div id="audit" class="hint">Loading…</div>
+  </div>
+</section>
+
+<!-- 4 · Scenario lab ---------------------------------------------------------------------------->
+<section id="tab-lab" role="tabpanel" aria-labelledby="t-lab" hidden>
+  <div class="panel">
+    <div class="row" style="align-items:flex-end">
+      <div><label for="scn">Scenario</label><select id="scn"></select></div>
+      <div><button class="primary" id="labBtn">Run scenario</button></div>
+    </div>
+    <p class="hint">Dry run: no email is sent and no release is signed. Each AI draft goes through the same gate as tab 1, next to the starter baseline (Ezio's overall tier only). Each proposed action is then scored against the stakeholders' preferences.</p>
+    <div id="labHead"></div>
+  </div>
+  <div id="labOut" aria-live="polite"></div>
+</section>
+</main>
 
 <script>
-// Set this to the persona you chose: customer_support | paralegal | financial_analyst
 const PERSONA = "customer_support";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const LABEL = { APPROVE: "✓ Approved", HOLD_FOR_REVIEW: "⏸ Held for review", BLOCK: "✕ Blocked" };
+const SHORT = { APPROVE: "✓ APPROVE", HOLD_FOR_REVIEW: "⏸ HOLD", BLOCK: "✕ BLOCK" };
+const held = [];
 
-// Plumbing: the one call every version of this page makes. Returns {decision, reason, evidence, action_executed, ...}.
-async function decide(text, context = {}) {
-  const response = await fetch("/decide", { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text, persona: PERSONA, context }) });
-  const body = await response.json();
-  if (!response.ok) throw new Error(body.error || "Request failed");
-  return body;
+// ---------- tabs
+document.querySelectorAll('nav [role=tab]').forEach((tab) => tab.addEventListener('click', () => {
+  document.querySelectorAll('nav [role=tab]').forEach((t) => { t.setAttribute('aria-selected', t === tab); $(t.getAttribute('aria-controls')).hidden = t !== tab; });
+  if (tab.id === 't-review') loadAudit();
+}));
+
+function banner(kind, msg) { $('globalBanner').innerHTML = msg ? `<div class="banner ${kind}">${esc(msg)}</div>` : ""; }
+
+async function postJSON(url, body, onSlow) {
+  const ctl = new AbortController();
+  const slow = setTimeout(() => onSlow && onSlow(), 5000);
+  const kill = setTimeout(() => ctl.abort(), 70000);
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: ctl.signal });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data;
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "No answer after 70 seconds" : e.message);
+  } finally { clearTimeout(slow); clearTimeout(kill); }
 }
 
-// Plumbing: sample inputs from the practice set: [{id, text, context}, ...]
+function context() {
+  const c = {}; if ($('plan').value) c.plan = $('plan').value;
+  const t = $('tenure').value; if (t !== "" && !isNaN(+t)) c.customer_tenure_months = +t;
+  return c;
+}
+
+// ---------- decision card
+function highlight(text, findings) {
+  let html = esc(text);
+  const spans = [...new Set((findings || []).map((f) => f.stated).filter((s) => s && s.length >= 2 && s.length < 80))];
+  spans.forEach((s) => { const e = esc(s); html = html.split(e).join(`<mark class="bad" title="Doesn't match company data">${e}</mark>`); });
+  return html;
+}
+
+function meter(name, v) {
+  return `<div class="meter"><span style="width:80px">${name}</span><span class="bar" aria-hidden="true"><span style="width:${Math.max(0, Math.min(100, v))}%"></span><i></i></span><strong>${v}</strong>${v < 60 ? ' <span class="chip HOLD_FOR_REVIEW">below 60</span>' : ''}</div>`;
+}
+
+function ezioCard(r) {
+  const z = r.ezio || {};
+  if (!z.verdict) return `<div class="banner warn">Ezio unavailable: ${esc(z.error || r.ezio_status)}. The gate decided on company data alone and failed closed.</div>`;
+  const d = z.dimensions || {}, a = d.accuracy || {};
+  const claims = (z.claims || []).map((c) => `<li><span class="chip ${c.verdict === 'contradicted' ? 'BLOCK' : c.verdict === 'supported' ? 'APPROVE' : 'HOLD_FOR_REVIEW'}">${esc(c.verdict)}</span>${esc(c.text)}</li>`).join("");
+  return `<dl class="kv"><dt>Overall</dt><dd><strong>${esc(z.verdict.tier)} ${esc(z.verdict.score)}</strong> · ${esc(z.verdict.label)}: ${esc(z.verdict.summary)}</dd>
+    <dt>Accuracy</dt><dd>${esc(a.status)}${a.status === 'not_scored' ? ' (no public claims found. This is not proof the facts were checked.)' : ''}</dd></dl>
+    ${meter('Tone', d.tone?.score)}${meter('Bias', d.bias?.score)}${meter('Agreement', d.agreement?.score)}
+    ${claims ? `<ul class="tight">${claims}</ul>` : ''}`;
+}
+
+function welfareCard(w) {
+  if (!w) return "";
+  const rows = (w.options || []).map((o) => `<tr><td>${esc(o.label)}${o.name === w.chosen ? ' <strong>(this email)</strong>' : ''}</td><td>$${o.cost_pm.toFixed(2)}</td><td>${o.commit_months} mo</td><td>${o.refund_days} days</td><td>${o.pareto_frontier ? 'frontier' : 'dominated'}</td></tr>`).join("");
+  const profs = Object.values(w.profiles || {}).map((p) => `<li>${esc(p.label)}: best is <strong>${esc(p.best_label)}</strong>${p.regret > 0 ? ` (this email scores ${(p.regret * 100).toFixed(0)} points lower)` : ' ✓ this email'}</li>`).join("");
+  return `<h3 style="font-size:15px;margin:14px 0 4px">Best-option check (advisory)</h3>
+    <div class="banner ${w.status === 'dominated' ? 'warn' : 'info'}">${esc(w.note)}</div>
+    <table><thead><tr><th>Offer this customer qualifies for</th><th>$/mo</th><th>Commitment</th><th>Refund window</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <ul class="tight">${profs}</ul>`;
+}
+
+function renderDecision(el, r, text) {
+  const findings = r.findings || [];
+  const flist = findings.map((f) => `<li><span class="chip ${esc(f.level)}">${esc(SHORT[f.level] || f.level)}</span>${esc(f.message)}${f.expected ? `<br><span class="hint">Company data: ${esc(f.expected)}${f.source ? ` · ${esc(f.source)}` : ''}</span>` : ''}</li>`).join("");
+  const cov = r.coverage || {};
+  const base = r.baseline || {};
+  const agrees = base.decision === r.decision;
+  el.innerHTML = `
+    <div class="badge ${esc(r.decision)}" role="status">${LABEL[r.decision] || esc(r.decision)} · ${r.action_executed ? 'email sent (mock send_email ran)' : 'not sent'}</div>
+    <p><strong>Why:</strong> ${esc(r.reason)}</p>
+    <p><strong>What happens:</strong> ${esc(r.consequence)}</p>
+    ${r.ezio_status && r.ezio_status !== 'ok' ? `<div class="banner warn">Ezio ${esc(r.ezio_status)}: the gate failed closed on what it couldn't check.</div>` : ''}
+    <h3 style="font-size:15px;margin:14px 0 4px">The draft, with problem figures marked</h3>
+    <div class="draft">${highlight(text, findings)}</div>
+    ${flist ? `<h3 style="font-size:15px;margin:14px 0 4px">Problems found</h3><ul class="tight">${flist}</ul>` : ''}
+    <h3 style="font-size:15px;margin:14px 0 4px">Coverage</h3>
+    <p style="margin:0"><strong>Matched company data:</strong> ${esc((cov.checked || []).join('; ') || (findings.length ? 'nothing' : 'no pricing or policy figures to check'))}</p>
+    ${findings.filter((f) => f.level === 'BLOCK' && f.stated).length ? `<p style="margin:0"><strong>Contradicted by company data:</strong> ${esc(findings.filter((f) => f.level === 'BLOCK' && f.stated).map((f) => `${f.stated} (should be ${f.expected})`).join('; '))}</p>` : ''}
+    ${(cov.could_not_check || []).length ? `<p style="margin:0"><strong>Could not check:</strong> ${esc(cov.could_not_check.join('; '))}</p>` : ''}
+    <h3 style="font-size:15px;margin:14px 0 4px">Ezio's scorecard</h3>${ezioCard(r)}
+    <p class="hint">Starter gate (Ezio's overall tier only) would say <strong>${esc(SHORT[base.decision] || '?')}</strong>${agrees ? ': same call.' : ': a different call.'}</p>
+    ${welfareCard(r.welfare)}
+    <details><summary>Full evidence (what the audit log records)</summary><ul class="tight">${(r.evidence || []).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></details>
+    ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (tab 3).</p>' : ''}`;
+}
+
+// ---------- 1 · check & send
+$('draft').addEventListener('input', () => { $('count').textContent = $('draft').value.length.toLocaleString(); });
+$('sendBtn').addEventListener('click', async () => {
+  const text = $('draft').value;
+  if (!text.trim()) { banner('err', 'Type or paste a draft first: an empty email is not sent.'); return; }
+  if (text.length > 20000) { banner('err', 'Draft is over 20,000 characters; shorten it before checking.'); return; }
+  banner('', ''); $('sendBtn').disabled = true;
+  $('result').innerHTML = '<p class="muted">Checking with company data and Ezio (usually 2–6 seconds)…</p>';
+  try {
+    const r = await postJSON('/decide', { text, persona: PERSONA, context: context() },
+      () => { $('result').innerHTML = '<p class="muted">Still checking… Ezio is slow right now. Nothing is sent until the gate answers.</p>'; });
+    renderDecision($('result'), r, text);
+    if (r.decision === 'HOLD_FOR_REVIEW') { held.push({ text, r }); renderQueue(); }
+  } catch (e) {
+    $('result').innerHTML = `<div class="banner err">Gate error: ${esc(e.message)}. Nothing was sent. Your draft is kept; try again.</div>`;
+  } finally { $('sendBtn').disabled = false; }
+});
+
+// ---------- 2 · simulate
+let SAMPLES = [];
 async function loadSamples() {
-  const response = await fetch("/api/samples?persona=" + PERSONA);
-  return (await response.json()).samples;
+  try {
+    const res = await fetch(`/api/samples?persona=${PERSONA}`); const data = await res.json(); SAMPLES = data.samples || [];
+    $('sampleList').innerHTML = SAMPLES.map((s, i) => `<label style="font-weight:400;display:flex;gap:8px;align-items:flex-start;margin:4px 0"><input type="checkbox" data-i="${i}"><span><code>${esc(s.id)}</code> ${esc(s.text)} <span class="hint">${esc(JSON.stringify(s.context))}</span></span></label>`).join("");
+  } catch (e) { $('sampleList').innerHTML = `<div class="banner err">Couldn't load samples: ${esc(e.message)}</div>`; }
+}
+$('simPick').addEventListener('click', () => {
+  const boxes = [...document.querySelectorAll('#sampleList input')];
+  boxes.forEach((b) => b.checked = false);
+  [0, 6, 10, 11, 13].forEach((i) => boxes[i] && (boxes[i].checked = true));
+});
+$('simBtn').addEventListener('click', async () => {
+  const picked = [...document.querySelectorAll('#sampleList input:checked')].map((b) => SAMPLES[+b.dataset.i]);
+  if (!picked.length) { banner('warn', 'Pick at least one sample.'); return; }
+  banner('', ''); $('simBtn').disabled = true;
+  $('simOut').innerHTML = picked.map((s) => `<div class="card" id="sim-${esc(s.id)}"><code>${esc(s.id)}</code> <span class="muted">checking…</span><p>${esc(s.text)}</p></div>`).join("");
+  await Promise.all(picked.map(async (s) => {
+    const el = document.getElementById(`sim-${s.id}`);
+    try {
+      const r = await postJSON('/decide', { text: s.text, persona: PERSONA, context: s.context });
+      el.innerHTML = `<div class="badge ${esc(r.decision)}" style="font-size:15px">${LABEL[r.decision]}</div>
+        <p style="margin:8px 0 4px"><strong>${r.action_executed ? '📨 send_email ran' : '🚫 Never reached send_email'}</strong></p>
+        <div class="draft">${highlight(s.text, r.findings)}</div><p class="hint">${esc(r.reason)}</p>
+        <p class="hint">Starter gate would: ${esc(SHORT[r.baseline?.decision] || '?')}</p>`;
+      if (r.decision === 'HOLD_FOR_REVIEW') { held.push({ text: s.text, r }); renderQueue(); }
+    } catch (e) { el.innerHTML += `<div class="banner err">${esc(e.message)}: not sent.</div>`; }
+  }));
+  $('simBtn').disabled = false;
+});
+
+// ---------- 3 · review & audit
+function renderQueue() {
+  if (!held.length) { $('queue').innerHTML = '<p class="muted">Nothing held yet.</p>'; return; }
+  $('queue').innerHTML = held.map((h, i) => `<div class="card" style="margin-bottom:10px">
+    <div class="draft">${highlight(h.text, h.r.findings)}</div>
+    <p><strong>Held because:</strong> ${esc(h.r.reason)}</p>
+    ${h.done ? `<div class="banner info">${esc(h.done)}</div>` : `
+    <label for="rr-${i}">Your reason (required, logged)</label><input type="text" id="rr-${i}" style="width:100%" placeholder="e.g. Checked with the product manager; the feature date is confirmed">
+    <div style="margin-top:8px;display:flex;gap:8px"><button class="primary" data-act="release" data-i="${i}">Release and send</button><button class="secondary" data-act="reject" data-i="${i}">Reject: don't send</button></div>`}
+  </div>`).join("");
+}
+$('queue').addEventListener('click', async (ev) => {
+  const b = ev.target.closest('button[data-act]'); if (!b) return;
+  const i = +b.dataset.i, h = held[i], reason = $(`rr-${i}`).value.trim();
+  if (!reason) { banner('warn', 'A release or rejection needs a reason; it goes in the audit log.'); return; }
+  try {
+    const r = await postJSON('/api/review', { verdict: b.dataset.act, reason, text: h.text, decision: h.r.decision, gate_reason: h.r.reason });
+    h.done = `${r.outcome} · logged ${r.timestamp}`; renderQueue(); loadAudit();
+  } catch (e) { banner('err', `Review not saved: ${e.message}`); }
+});
+async function loadAudit() {
+  try {
+    const res = await fetch('/api/audit'); const d = await res.json();
+    const rows = (d.audit || []).slice(0, 25).map((a) => `<tr><td>${esc(a.timestamp)}</td><td><span class="chip ${esc(a.decision)}">${esc(SHORT[a.decision])}</span></td><td>${esc((a.input || '').slice(0, 90))}</td><td>${esc((a.reason || '').slice(0, 120))}</td></tr>`).join("");
+    const revs = (d.reviews || []).slice(0, 10).map((v) => `<li>${esc(v.timestamp)}: <strong>${esc(v.verdict)}</strong> (${esc(v.outcome)}): “${esc(v.reason)}”</li>`).join("");
+    $('audit').innerHTML = `<p>${(d.actions || []).length} mock emails actually sent (actions.log), one per APPROVE.</p>
+      <table><thead><tr><th>When (UTC)</th><th>Decision</th><th>Draft</th><th>Reason</th></tr></thead><tbody>${rows || '<tr><td colspan=4>No decisions yet.</td></tr>'}</tbody></table>
+      ${revs ? `<h3 style="font-size:15px">Reviewer decisions</h3><ul class="tight">${revs}</ul>` : ''}`;
+  } catch (e) { $('audit').innerHTML = `<div class="banner err">Audit log unavailable: ${esc(e.message)}</div>`; }
+}
+$('auditBtn').addEventListener('click', loadAudit);
+
+// ---------- 4 · scenario lab
+let LAB = null;
+async function loadScenarios() {
+  try {
+    const d = await (await fetch('/api/scenarios')).json();
+    $('scn').innerHTML = d.scenarios.map((s) => `<option value="${esc(s.id)}">${esc(s.title)}</option>`).join("");
+  } catch (e) { $('scn').innerHTML = '<option>unavailable</option>'; }
+}
+function weightsForm(objs, prefill) {
+  return `<h3 style="font-size:15px;margin:12px 0 4px">Your stakeholder weights</h3><div class="row" style="gap:18px">${objs.map((o) => `
+    <div><label for="w-${esc(o.key)}">${esc(o.label)}</label><input type="range" min="0" max="100" value="${Math.round((prefill[o.key] ?? 0.33) * 100)}" id="w-${esc(o.key)}" aria-describedby="wv-${esc(o.key)}"> <span id="wv-${esc(o.key)}">${Math.round((prefill[o.key] ?? 0.33) * 100)}</span></div>`).join("")}
+    <div style="align-self:flex-end"><button class="secondary" id="wRun">Score with my weights</button></div></div>`;
+}
+async function runLab(prefs) {
+  $('labBtn').disabled = true; $('labOut').innerHTML = '<p class="muted">Running every draft through the gate (Ezio takes 2–6 s each, in parallel)…</p>';
+  try {
+    LAB = await postJSON('/api/scenario', { id: $('scn').value, preferences: prefs || null });
+    renderLab(LAB);
+  } catch (e) { $('labOut').innerHTML = `<div class="banner err">Scenario failed: ${esc(e.message)}</div>`; }
+  finally { $('labBtn').disabled = false; }
+}
+$('labBtn').addEventListener('click', () => runLab());
+
+function shortName(key, opts) { const o = opts.find((x) => (x.key || x.name) === key); return o ? o.label : key; }
+function renderLab(L) {
+  const s = L.scenario, isOpt = s.kind === 'options';
+  const opts = L.options, profs = L.profiles, objs = L.objectives;
+  const okey = (o) => o.key || o.name;
+  const colorOf = {}; opts.forEach((o, i) => colorOf[okey(o)] = `w${i % 5}`);
+  $('labHead').innerHTML = `<p><strong>${esc(s.title)}.</strong> ${esc(s.situation)}</p><div class="banner info">${esc(s.disclaimer)}</div>`;
+  const rules = isOpt ? `<div class="panel"><h3 style="margin-top:0;font-size:16px">Rules: hard constraints, never traded</h3><p class="hint">${esc(s.rules_note || '')}</p><ul class="tight">${(L.guardrails || []).map((g) => `<li>${esc(g.label)} <span class="hint">(${esc(g.source)})</span></li>`).join("")}</ul></div>`
+    : `<div class="panel"><h3 style="margin-top:0;font-size:16px">Rules: hard constraints, never traded</h3><ul class="tight"><li>Loyalty discount only for Pro or Business customers with 12+ months (policies.json)</li><li>Discounts never stack (policies.json)</li><li>Prices, refund windows and response times must match the price sheet</li></ul></div>`;
+  const pnames = Object.keys(profs);
+  const head = isOpt ? objs.map((o) => `<th>${esc(o.label)}</th>`).join("") : '<th>$/mo</th><th>Commitment</th><th>Refund</th><th>12-mo revenue (belief)</th>';
+  const optRows = opts.map((o) => {
+    const k = okey(o), feasible = isOpt ? o.feasible : true;
+    const vals = isOpt ? objs.map((ob) => `<td>${o.metrics[ob.key]}</td>`).join("") : `<td>$${o.cost_pm.toFixed(2)}</td><td>${o.commit_months} mo</td><td>${o.refund_days} d</td><td>$${o.revenue_12m.toFixed(0)}</td>`;
+    const status = !feasible ? `<span class="chip BLOCK">✕ rules out: ${esc((o.guardrails || []).filter((g) => !g.ok).map((g) => g.label).join('; '))}</span>`
+      : (o.pareto_frontier ? '<span class="chip APPROVE">frontier</span>' : `<span class="chip HOLD_FOR_REVIEW">dominated by ${esc(shortName(o.dominated_by, opts))}</span>`);
+    const utils = pnames.map((p) => { const u = profs[p].utility?.[k]; return `<td class="${profs[p].best === k ? 'best' : ''}">${u == null ? '—' : (u * 100).toFixed(0)}${profs[p].best === k ? ' ★' : ''}</td>`; }).join("");
+    return `<tr><td>${esc(o.label)}</td>${vals}<td>${status}</td>${utils}</tr>`;
+  }).join("");
+  const profHead = pnames.map((p) => `<th>${esc(profs[p].label)}<br><span class="hint">${Object.entries(profs[p].weights).map(([k, v]) => `${Math.round(v * 100)}`).join(' / ')}</span></th>`).join("");
+  const grid = L.surface.grid || L.surface;
+  const surf = grid.map((row) => { const vals = Object.values(row); const rlabel = vals[0], cells = vals[1];
+    return `<tr><th>${(rlabel * 100).toFixed(0)}%</th>${Object.values(cells).map((w) => `<td class="${colorOf[w] || 'w4'}">${esc(shortName(w, opts))}</td>`).join("")}</tr>`; }).join("");
+  const firstRow = grid[0] ? Object.keys(Object.values(grid[0])[1]) : [];
+  const axes = L.surface.axes || { rows: 'weight on the company', columns: 'share of the customer weight on cost' };
+  const drafts = L.drafts.map((d) => `<tr><td><code>${esc(d.id)}</code></td><td>${esc(d.text)}${d.note ? `<br><span class="hint">${esc(d.note)}</span>` : ''}</td>
+    <td>${esc(d.option_label || '—')}</td><td>${(d.ezio_flags || []).length ? esc(d.ezio_flags.join('; ')) : '<span class="muted">none</span>'}</td>
+    <td><span class="chip ${esc(d.baseline?.decision)}">${esc(SHORT[d.baseline?.decision] || '?')}</span></td>
+    <td><span class="chip ${esc(d.gate.decision)}">${esc(SHORT[d.gate.decision])}</span><br><span class="hint">${esc(d.gate.reason)}</span></td>
+    <td>${esc(d.category)}</td></tr>`).join("");
+  const prefill = profs.custom ? profs.custom.weights : (profs[Object.keys(profs)[0]].weights);
+  const objList = isOpt ? objs : objs.map((o) => ({ key: o.key, label: o.label.split('(')[0] }));
+  $('labOut').innerHTML = `${rules}
+    <div class="panel"><h3 style="margin-top:0;font-size:16px">What each AI draft would do: Ezio vs the starter vs this gate</h3>
+      <table><thead><tr><th>#</th><th>AI draft</th><th>Proposed action</th><th>What Ezio flagged</th><th>Starter gate</th><th>This gate</th><th>Verdict</th></tr></thead><tbody>${drafts}</tbody></table></div>
+    <div class="panel"><h3 style="margin-top:0;font-size:16px">The trade-off: options scored by each stakeholder (0–100, ★ = best)</h3>
+      <table><thead><tr><th>Option</th>${head}<th>Rules &amp; frontier</th>${profHead}</tr></thead><tbody>${optRows}</tbody></table>
+      ${weightsForm(objList, prefill)}</div>
+    <div class="panel"><h3 style="margin-top:0;font-size:16px">Trade-off surface: which option wins as the weights move</h3>
+      <p class="hint">Rows: ${esc(axes.rows)}. Columns: ${esc(axes.columns)}.</p>
+      <table class="surface"><thead><tr><th></th>${firstRow.map((c) => `<th>${(c * 100).toFixed(0)}%</th>`).join("")}</tr></thead><tbody>${surf}</tbody></table></div>`;
+  objList.forEach((o) => { const el = $(`w-${o.key}`); el && el.addEventListener('input', () => { $(`wv-${o.key}`).textContent = el.value; }); });
+  $('wRun').addEventListener('click', () => { const w = {}; objList.forEach((o) => w[o.key] = +$(`w-${o.key}`).value / 100); runLab({ weights: w, label: 'Your weights' }); });
 }
 
-// TODO: show the result. Decision, reason, and evidence are what a person needs to decide; also show
-// whether the action ran (result.action_executed). Handle loading and errors (including a slow or down Ezio).
-function showResult(result) {
-  document.getElementById("out").textContent = JSON.stringify(result, null, 2);
-}
-
-// TODO: wire the buttons. Disable them while a request is running; catch errors and show them.
-document.getElementById("check").onclick = async () => {
-  showResult(await decide(document.getElementById("text").value));
-};
-
-// TODO: populate #samples from loadSamples(), then make "Simulate" send the chosen sample's text and context
-// through decide() and show clearly whether the action ran.
+loadSamples(); loadScenarios(); renderQueue();
 </script>
 </body>
 </html>

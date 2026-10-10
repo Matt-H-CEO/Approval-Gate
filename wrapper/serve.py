@@ -6,12 +6,27 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import mock_actions
+import scenario
+from datetime import datetime, timezone
 from wrapper import APPROVE, decide
 
 UI_DIR = Path(__file__).parent / "ui"
 PERSONAS_DIR = Path(__file__).resolve().parent.parent / "personas"
 
 PERSONAS = {"customer_support", "paralegal", "financial_analyst"}
+LOG_DIR = Path(os.getenv("GATE_LOG_DIR") or Path(__file__).parent)
+
+
+def tail_jsonl(path, limit=40):
+    if not path.exists():
+        return []
+    rows = []
+    for line in path.read_text().splitlines()[-limit:]:
+        try:
+            rows.append(json.loads(line))
+        except ValueError:
+            continue
+    return rows[::-1]
 
 
 def samples(persona):
@@ -49,6 +64,13 @@ class Handler(BaseHTTPRequestHandler):
         route, _, query = self.path.partition("?")
         if route == "/health":
             return self.send_json(200, {"status": "ok"})
+        if route == "/api/audit":
+            rows = [{k: r.get(k) for k in ("timestamp", "persona", "input", "context", "decision", "reason", "ezio_status")}
+                    for r in tail_jsonl(LOG_DIR / "audit_log.jsonl")]
+            return self.send_json(200, {"audit": rows, "reviews": tail_jsonl(LOG_DIR / "review_log.jsonl"),
+                                        "actions": tail_jsonl(LOG_DIR / "actions.log")})
+        if route == "/api/scenarios":
+            return self.send_json(200, {"scenarios": scenario.list_scenarios()})
         if route == "/api/samples":
             persona = dict(p.split("=", 1) for p in query.split("&") if "=" in p).get("persona")
             if persona not in PERSONAS:
@@ -65,7 +87,20 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(404, {"error": "Unknown endpoint"})
 
+    def read_json(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= 1_000_000:
+            raise ValueError("Body must be 1 to 1000000 bytes")
+        payload = json.loads(self.rfile.read(length))
+        if not isinstance(payload, dict):
+            raise ValueError("Body must be a JSON object")
+        return payload
+
     def do_POST(self):
+        if self.path == "/api/review":
+            return self.review()
+        if self.path == "/api/scenario":
+            return self.run_scenario()
         if self.path != "/decide":
             return self.send_json(404, {"error": "Unknown endpoint"})
         self.connection.settimeout(10)
@@ -93,6 +128,37 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, {**asdict(result), "action_executed": execute})
         except Exception:
             self.send_json(500, {"error": "Wrapper failed; inspect the decision implementation"})
+
+
+    def review(self):
+        """A person releases or rejects a HELD draft, with a reason. Logged apart from actions.log, which must
+        equal the gate's APPROVE decisions; a release is recorded as a human-released send, not a gate approval."""
+        try:
+            p = self.read_json()
+            verdict, reason, text = p.get("verdict"), str(p.get("reason", "")).strip(), str(p.get("text", ""))
+            if verdict not in ("release", "reject") or not reason or not text or p.get("decision") == "BLOCK":
+                raise ValueError("verdict must be release or reject, with a reason; BLOCKed drafts cannot be released")
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        entry = {"timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"), "verdict": verdict,
+                 "reason": reason[:500], "reviewer": str(p.get("reviewer") or "support lead")[:80], "input": text[:2000],
+                 "gate_decision": p.get("decision"), "gate_reason": str(p.get("gate_reason", ""))[:500],
+                 "outcome": "sent (mock), human-released" if verdict == "release" else "not sent, rejected by reviewer"}
+        with (LOG_DIR / "review_log.jsonl").open("a") as f:
+            f.write(json.dumps(entry) + "\n")
+        return self.send_json(200, entry)
+
+    def run_scenario(self):
+        try:
+            p = self.read_json()
+            result = scenario.run(str(p.get("id")), p.get("preferences"))
+        except KeyError:
+            return self.send_json(404, {"error": "Unknown scenario"})
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            return self.send_json(500, {"error": f"Scenario failed: {type(e).__name__}"})
+        return self.send_json(200, result)
 
 
 def main():
