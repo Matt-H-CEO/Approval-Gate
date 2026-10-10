@@ -27,3 +27,4 @@ class CheckResult:
     verified: list = field(default_factory=list)    # claims that matched the source of truth
     unchecked: list = field(default_factory=list)   # claims seen but not checkable here
     welfare: dict = None                            # optional multi-objective note (advisory)
+    recommendation: dict = None                     # best compliant option under the stated preferences

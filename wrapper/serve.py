@@ -68,7 +68,8 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/health":
             return self.send_json(200, {"status": "ok"})
         if route == "/api/audit":
-            rows = [{k: r.get(k) for k in ("decision_id", "timestamp", "persona", "input", "context", "decision", "reason", "ezio_status")}
+            rows = [{k: r.get(k) for k in ("decision_id", "timestamp", "persona", "input", "context", "decision", "reason", "ezio_status",
+                                           "preferences", "issues", "ezio_flags", "recommendation", "baseline", "findings")}
                     for r in tail_jsonl(LOG_DIR / "audit_log.jsonl")]
             return self.send_json(200, {"audit": rows, "reviews": tail_jsonl(LOG_DIR / "review_log.jsonl"),
                                         "actions": tail_jsonl(LOG_DIR / "actions.log")})

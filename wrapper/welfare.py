@@ -146,3 +146,67 @@ def scenario_surface(plan, tenure, plans, pol, context=None):
         w, table, best = utility(opts, prof["weights"])
         out[key] = {"label": prof["label"], "weights": w, "utility": table, "best": best["name"], "best_label": best["label"]}
     return {"plan": plan, "tenure_months": tenure, "options": opts, "profiles": out, "surface": surface(opts), "retention_beliefs": beliefs}
+
+
+def resolve_preferences(context):
+    """The stakeholder preferences stated up front: a named profile, or custom weights. Default from preferences.json."""
+    prefs = context.get("preferences") if isinstance(context, dict) else None
+    profs, beliefs = profiles_from_context(context or {})
+    if isinstance(prefs, dict) and isinstance(prefs.get("weights"), dict):
+        key = "custom"
+    elif isinstance(prefs, dict) and prefs.get("profile") in profs:
+        key = prefs["profile"]
+    elif isinstance(prefs, str) and prefs in profs:
+        key = prefs
+    else:
+        key = PREFS["default_profile"]
+    prof = profs[key]
+    return {"profile": key, "label": prof["label"], "weights": _clean_weights(prof["weights"]),
+            "why": prof.get("why", ""), "retention_beliefs": beliefs, "stated": bool(prefs)}
+
+
+def _reply_for(o, plan, tenure, pol):
+    refund_m, refund_a = pol["refunds"]["monthly_plans_days"], pol["refunds"]["annual_plans_days"]
+    if o["name"] == "loyalty":
+        return (f"Thanks for being with us for {tenure:g} months. You qualify for our {pol['discounts']['loyalty']['percent']:g}% loyalty discount, "
+                f"which brings {plan} to ${o['cost_pm']:.2f} per month, still billed monthly with a {refund_m:g}-day refund window on your first payment.")
+    if o["name"] == "annual":
+        return (f"If you switch to annual billing, {plan} is ${o['cost_pm']:.2f} per month, billed annually; "
+                f"annual plans can be refunded within {refund_a:g} days of the first payment.")
+    return f"Your {plan} plan is ${o['cost_pm']:.2f} per month."
+
+
+def recommend(plan, tenure, plans, pol, context=None):
+    """Pareto-optimal, policy-compliant recommendation under the stakeholder preferences stated up front."""
+    if not plan or plan not in plans or plan == "Enterprise":
+        return None
+    pref = resolve_preferences(context or {})
+    profs, beliefs = profiles_from_context(context or {})
+    opts = options(plan, tenure, plans, pol, beliefs)
+    frontier = [o for o in opts if o["pareto_frontier"]]
+    w, table, _ = utility(frontier, pref["weights"])
+    best = max(frontier, key=lambda o: (table[o["name"]], -o["cost_pm"]))
+    others = [o for o in frontier if o is not best]
+    alt = max(others, key=lambda o: table[o["name"]]) if others else None
+    trade = []
+    if alt:
+        if alt["cost_pm"] < best["cost_pm"]:
+            trade.append(f"{alt['label']} is ${best['cost_pm'] - alt['cost_pm']:.2f}/mo cheaper")
+        if alt["refund_days"] > best["refund_days"] or alt["commit_months"] < best["commit_months"]:
+            trade.append(f"{alt['label']} keeps a {alt['refund_days']}-day refund window and {alt['commit_months']}-month commitment")
+    excluded = [f"{o['label']}: dominated by a cheaper offer on the same terms" for o in opts if not o["pareto_frontier"]]
+    if tenure is None or plan not in pol["discounts"]["loyalty"]["applies_to"] or (tenure or 0) < pol["discounts"]["loyalty"]["min_tenure_months"]:
+        excluded.append("Loyalty discount: not eligible (needs Pro or Business and 12+ months)")
+    excluded.append("Stacked discounts: not allowed by policy")
+    return {
+        "preferences": pref,
+        "choice": best["name"], "choice_label": best["label"], "cost_pm": best["cost_pm"],
+        "suggested_reply": _reply_for(best, plan, tenure, pol) + (f" {_reply_for(alt, plan, tenure, pol)}" if alt and alt["name"] != "list" else ""),
+        "why": (f"Under '{pref['label']}' (weights: cost {w['customer_cost']:.0%}, flexibility {w['customer_flexibility']:.0%}, "
+                f"company revenue {w['company_revenue']:.0%}), {best['label']} scores {table[best['name']] * 100:.0f}/100, "
+                f"the best of the Pareto-optimal, policy-compliant offers for this customer."),
+        "tradeoff": "; ".join(trade),
+        "frontier": [{"name": o["name"], "label": o["label"], "cost_pm": o["cost_pm"], "commit_months": o["commit_months"],
+                      "refund_days": o["refund_days"], "score": table[o["name"]]} for o in frontier],
+        "excluded": excluded,
+    }

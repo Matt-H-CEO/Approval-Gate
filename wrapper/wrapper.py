@@ -61,6 +61,10 @@ class Decision:
     baseline: dict = None
     decision_id: str = ""
     four_tests: dict = None
+    issues: list = field(default_factory=list)
+    ezio_flags: list = field(default_factory=list)
+    recommendation: dict = None
+    preferences: dict = None
 
 
 def parse_signals(resp):
@@ -263,11 +267,54 @@ def decide(text, context=None, persona="customer_support", scenario=None, audit_
             ezio_status="degraded" if signals.accuracy_status == "unavailable" else "ok", welfare=check.welfare,
             baseline=baseline_decision(signals),
         )
+    result.recommendation = check.recommendation
+    result.preferences = (check.recommendation or {}).get("preferences")
+    result.ezio_flags, result.issues = issue_ledger(result, check)
     result.decision_id = hashlib.sha1(f"{time.time_ns()}|{text}".encode()).hexdigest()[:12]
     result.four_tests = four_tests(result)
     if audit_log:
         audit.record(persona, text, context, result)
     return result
+
+
+def ezio_flags_of(response):
+    """What Ezio itself flagged: weak tier, weak dimension, contradicted or unverifiable claim."""
+    try:
+        sig = parse_signals(response)
+    except Exception:  # noqa: BLE001
+        return ["Ezio unavailable"]
+    out = []
+    if sig.tier != "GREEN":
+        out.append({"issue": f"Overall tier {sig.tier} {sig.score:g}", "kind": "tier"})
+    for d in ("tone", "bias", "agreement"):
+        v = getattr(sig, d)
+        if v < 80:
+            out.append({"issue": f"{d.capitalize()} {v:g} ({'critical' if v < 60 else 'warning'})", "kind": d})
+    for c in sig.claims:
+        if c.get("verdict") in ("contradicted", "unverifiable"):
+            out.append({"issue": f"Claim {c.get('verdict')}: {c.get('text')}", "kind": "claim"})
+    return out
+
+
+def issue_ledger(r, check):
+    """Every issue in the draft and who caught it: Ezio, HoldPoint's data check, or both."""
+    flags = ezio_flags_of(r.ezio)
+    ezio_kinds = {f["kind"] for f in flags if isinstance(f, dict)}
+    issues = []
+    for f in check.findings:
+        both = (f.rule.startswith("4") and ezio_kinds & {"tone", "bias", "agreement"})
+        issues.append({"issue": f.message, "level": f.level, "expected": f.expected, "source": f.source,
+                       "caught_by": "Ezio + HoldPoint" if both else "HoldPoint only"})
+    for fl in flags:
+        if not isinstance(fl, dict):
+            continue
+        if fl["kind"] == "claim":
+            issues.append({"issue": fl["issue"], "level": BLOCK if "contradicted" in fl["issue"] else HOLD,
+                           "expected": "", "source": "Ezio fact-check", "caught_by": "Ezio"})
+        elif not any(i["caught_by"] == "Ezio + HoldPoint" for i in issues):
+            issues.append({"issue": f"Ezio {fl['issue']}", "level": HOLD if "critical" in fl["issue"] or fl["kind"] == "tier" else "NOTE",
+                           "expected": "", "source": "Ezio dimensions", "caught_by": "Ezio"})
+    return [f["issue"] if isinstance(f, dict) else f for f in flags], issues
 
 
 def four_tests(r):

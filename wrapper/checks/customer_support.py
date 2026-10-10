@@ -52,6 +52,8 @@ def _topic_durations(s, money_spans):
     for d in tn.durations(s):
         if any(0 <= d["start"] - end <= 4 for end in money_spans):
             continue
+        if re.search(r"\b(once|twice|per|every|each)\s*$", s[max(0, d["start"] - 8):d["start"]], re.I):
+            continue  # a frequency ("billed once a year"), not a window
         best, best_d = None, None
         for name, rx in _TOPICS.items():
             for m in rx.finditer(s):
@@ -335,6 +337,7 @@ def check(text, context, sot):
                                         "4 hype", word, "neutral, factual tone", "business_rules.md rule 4", s))
 
     res.welfare = welfare.assess(offer, ctx_plan, tenure, plans, pol, context)
+    res.recommendation = welfare.recommend(ctx_plan, tenure, plans, pol, context)
     return res
 
 

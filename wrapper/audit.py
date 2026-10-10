@@ -24,6 +24,11 @@ def record(persona, text, context, decision):
         "coverage": getattr(decision, "coverage", {}),
         "welfare": getattr(decision, "welfare", None),
         "ezio_status": getattr(decision, "ezio_status", ""),
+        "preferences": getattr(decision, "preferences", None),
+        "issues": getattr(decision, "issues", []),
+        "ezio_flags": getattr(decision, "ezio_flags", []),
+        "recommendation": getattr(decision, "recommendation", None),
+        "baseline": getattr(decision, "baseline", None),
         "ezio": decision.ezio,
     }
     with _lock, LOG.open("a") as f:
