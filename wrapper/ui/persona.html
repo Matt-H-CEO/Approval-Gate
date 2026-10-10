@@ -199,12 +199,12 @@
 </header>
 <nav role="tablist" aria-label="Views">
   <button role="tab" aria-selected="true" aria-controls="tab-dispatch" id="t-dispatch">1 · Dispatch decision (MOCK)</button>
-  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">2 · Check &amp; send</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">2 · Check &amp; send <span class="chip APPROVE" style="margin:0 0 0 6px">judged</span></button>
   <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">3 · Simulate samples</button>
   <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">4 · Review queue &amp; audit</button>
   <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">5 · Scenario lab: trade-offs</button>
 </nav>
-<p class="hint" style="padding:8px 24px 0;margin:0">Tab 1 is a fictional aviation scenario. Tabs 2 to 4 are the judged flow: a customer support reply, the gated action <code>send_email</code>. Tab 5 compares several drafts at once.</p>
+<div style="padding:10px 24px 0"><div class="banner info" style="margin:0">Judges start at <strong>tab 2, Check &amp; send</strong>: the customer support persona and the gated action <code>send_email</code>, which is what <code>gate.py judge</code> scores. Tab 3 runs the sample set, tab 4 is the review queue and audit trail. Tabs 1 and 5 are a second, fictional aviation scenario showing the same gate on a safety decision.</div></div>
 <main>
 <div id="globalBanner" role="status" aria-live="polite"></div>
 
@@ -428,7 +428,7 @@ function recBlock(r) {
     <p style="margin:4px 0"><strong>Why:</strong> ${esc(rc.why)}</p>
     <p style="margin:4px 0"><strong>Trade-off:</strong> ${esc(rc.tradeoff)}</p>
     ${fr ? `<table><thead><tr><th>Option</th><th>$/month</th><th>Commitment (months)</th><th>Refund window (days)</th><th>Score</th></tr></thead><tbody>${fr}</tbody></table>` : ''}
-    ${ex ? `<h4 style="margin:10px 0 4px">Ruled out by policy, or beaten on every count</h4><ul class="tight">${ex}</ul>` : ''}
+    ${ex ? `<details><summary>Show the offers ruled out by policy, or beaten on every count</summary><ul class="tight">${ex}</ul></details>` : ''}
     ${rc.suggested_reply ? `<p style="margin:10px 0 4px"><strong>Suggested reply</strong></p><div class="draft">${esc(rc.suggested_reply)}</div>` : ''}`;
 }
 
@@ -665,7 +665,7 @@ function renderLab(L) {
     return `<tr><th>${(rlabel * 100).toFixed(0)}%</th>${Object.values(cells).map((w) => `<td class="${colorOf[w] || 'w4'}">${esc(shortName(w, opts))}</td>`).join("")}</tr>`; }).join("");
   const firstRow = grid[0] ? Object.keys(Object.values(grid[0])[1]) : [];
   const axes = L.surface.axes || { rows: 'weight on the company', columns: 'share of the customer weight on cost' };
-  const drafts = L.drafts.map((d) => `<tr><td><code>${esc(d.id)}</code></td><td>${esc(d.text)}${d.note ? `<br><span class="hint">${esc(d.note)}</span>` : ''}</td>
+  const drafts = L.drafts.map((d) => `<tr><td><code>${esc(d.id)}</code></td><td>${esc(d.text)}${d.note ? `<br><span class="hint">${esc(d.note)}</span>` : ''}${d.source ? `<details><summary>Where this draft came from</summary><span class="hint">${esc(d.source)}</span></details>` : ''}</td>
     <td>${esc(d.option_label || '—')}</td><td>${(d.ezio_flags || []).length ? esc(d.ezio_flags.join('; ')) : '<span class="muted">none</span>'}</td>
     <td><span class="chip ${esc(d.baseline?.decision)}">${esc(SHORT[d.baseline?.decision] || '?')}</span></td>
     <td><span class="chip ${esc(d.gate.decision)}">${esc(SHORT[d.gate.decision])}</span><br><span class="hint">${esc(d.gate.reason)}</span></td>
@@ -800,7 +800,7 @@ function dispRec(d) {
     '<p style="margin:4px 0">' + esc(r.why) + '</p>' +
     (r.tradeoff ? '<p style="margin:4px 0"><strong>The trade-off.</strong> ' + esc(r.tradeoff) + '</p>' : '') +
     '<table><thead><tr><th>Option</th><th>Safety margin (minutes)</th><th>Delay (minutes)</th><th>Cost (USD)</th><th>Score</th></tr></thead><tbody>' + fr + '</tbody></table>' +
-    (ex ? '<h3 style="font-size:15px;margin:14px 0 4px">Ruled out before any trade-off</h3><ul class="tight">' + ex + '</ul>' : '') +
+    (ex ? '<details><summary>Show the options ruled out before any trade-off</summary><ul class="tight">' + ex + '</ul></details>' : '') +
     (sr.rationale ? '<h3 style="font-size:15px;margin:14px 0 4px">The reason HoldPoint suggests instead</h3><div class="draft">' + esc(sr.rationale) + '</div>' +
       '<p style="margin-top:10px"><button class="primary" id="dispRecBtn">Check &amp; sign recommended release</button></p><div id="dispResult2"></div>' : '');
 }

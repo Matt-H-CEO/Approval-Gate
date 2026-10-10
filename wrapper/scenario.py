@@ -344,7 +344,7 @@ def _run_option_draft(scn, draft, profiles, table):
     findings = [f.as_dict() for f in check.findings]
     flags = ezio_flags(signals)
     return {"id": draft["id"], "text": draft["text"], "option": draft["option"], "option_label": row["label"],
-            "note": draft.get("note", ""), "ezio_flags": flags, "category": category(flags, level, findings, bool(row.get("dominated_by"))),
+            "note": draft.get("note", ""), "source": draft.get("source", ""), "ezio_flags": flags, "category": category(flags, level, findings, bool(row.get("dominated_by"))),
             "feasible": row["feasible"], "dominated_by": row.get("dominated_by"), "metrics": row["metrics"],
             "gate": {"decision": level, "reason": " ".join(dict.fromkeys(reasons)),
                      "findings": [f.as_dict() for f in check.findings], "checked": check.verified, "could_not_check": check.unchecked},
