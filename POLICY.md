@@ -30,7 +30,7 @@ The data check always runs, even when Ezio fails.
 | accuracy `unavailable` | BLOCK if the data check finds a contradiction, else **HOLD** | Only Ezio can see public-law claims (GDPR) |
 | checker crash | **HOLD** | Never approve without the independent signal |
 
-Practice run: 8/8 bad caught, 0/8 good blocked, 16/16 exact, failure drills 15/15. Team-written variants (`tests/variants.json`, not from practice): 14/14 bad caught, 14/14 good approved. We wrote both the checker and the variants, so that is a smoke test, not an independent score.
+Practice run: 8/8 bad caught, 0/8 good blocked, 16/16 exact, failure drills 15/15. Team-written variants (`tests/variants.json`, 40 items, not from practice) were used as a build-time smoke test. We wrote both the checker and the variants, so that is a smoke test, not an independent score.
 
 ## Human review: overseeable, not a rubber stamp
 
