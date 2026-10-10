@@ -5,70 +5,183 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>HoldPoint · Lumen Cloud Support</title>
 <style>
+  /* Preflight Console — engineering-grade minimalism.
+     System fonts only; no web fonts, no CDN, no network references. */
   :root {
-    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d1f24; --muted: #5d6270; --line: #dedbd2;
-    --ok: #1f7a4d; --ok-bg: #e5f3ea; --hold: #8a5a00; --hold-bg: #fdf1d6; --bad: #b42318; --bad-bg: #fde8e6;
-    --accent: #2f4fb5; --accent-bg: #e8ecfa; --mark: #ffe08a;
+    --bg: #f8f9ff; --panel: #ffffff; --panel-low: #eff4ff; --panel-mid: #e5eeff;
+    --ink: #0b1c30; --muted: #464554; --meta: #64748b;
+    --line: #d3e4fe; --line-strong: #c0d2ef;
+    --ok: #065f46; --ok-ink: #047857; --ok-bg: #ecfdf5; --ok-line: #a7f3d0;
+    --hold: #92400e; --hold-ink: #b45309; --hold-bg: #fffbeb; --hold-line: #fde68a;
+    --bad: #9f1239; --bad-ink: #be123c; --bad-bg: #fff1f2; --bad-line: #fecdd3;
+    --accent: #2a14b4; --accent-2: #4338ca; --accent-bg: #eef1ff; --accent-line: #c7cdf7;
+    --mark-bg: #fff1f2;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --r: 4px; --r-container: 6px; --r-code: 2px;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
-  header { padding: 18px 24px 0; }
-  header h1 { margin: 0; font-size: 20px; }
-  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-  ol.tests { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 12px 0 0; }
-  ol.tests li { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
-  ol.tests li strong { display: block; font-size: 13.5px; color: var(--accent); }
+  body {
+    margin: 0; font: 15px/1.5 var(--sans); background: var(--bg); color: var(--ink);
+    font-feature-settings: 'tnum' 1; -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---- header ---------------------------------------------------------- */
+  header { padding: 18px 24px 0; border-bottom: 1px solid var(--line); background: var(--panel); }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 95ch; }
+
+  /* four decision-grade tests */
+  ol.tests { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 14px 0 16px; }
+  ol.tests li {
+    background: var(--panel-low); border: 1px solid var(--line); border-left: 3px solid var(--accent-2);
+    border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; color: var(--muted);
+  }
+  ol.tests li strong {
+    display: block; font-size: 11px; font-weight: 600; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 2px;
+  }
+
+  /* four-test scorecard rendered inside a decision */
   .ft { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
-  .ft div { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12.5px; background: #fbfaf7; }
-  .ft div strong { display: block; font-size: 13px; }
-  .ft .no { border-color: var(--bad); background: var(--bad-bg); }
-  .stamp { border: 2px dashed var(--hold); background: var(--hold-bg); padding: 10px 12px; border-radius: 8px; margin: 8px 0; font-size: 13.5px; }
+  .ft div { border: 1px solid var(--line); border-radius: var(--r); padding: 8px; font-size: 12.5px; background: var(--panel-low); color: var(--muted); }
+  .ft div strong { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink); margin-bottom: 2px; }
+  .ft .no { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad); }
+  .ft .no strong { color: var(--bad); }
+
+  .stamp {
+    border: 1px solid var(--hold-line); border-left: 3px solid var(--hold-ink); background: var(--hold-bg);
+    padding: 10px 12px; border-radius: var(--r); margin: 8px 0; font-size: 13.5px; color: var(--hold);
+  }
   @media (max-width: 800px) { ol.tests, .ft { grid-template-columns: 1fr 1fr; } }
-  nav { display: flex; gap: 4px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
-  nav button { border: 1px solid var(--line); border-bottom: none; background: #ecebe6; padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; color: var(--ink); }
-  nav button[aria-selected="true"] { background: var(--panel); font-weight: 600; }
+
+  /* ---- tabs ------------------------------------------------------------ */
+  nav { display: flex; gap: 4px; padding: 10px 24px 0; background: var(--panel); border-bottom: 1px solid var(--line-strong); flex-wrap: wrap; }
+  nav button {
+    border: 1px solid transparent; background: transparent; padding: 7px 14px; margin-bottom: -1px;
+    border-radius: var(--r) var(--r) 0 0; cursor: pointer; font: inherit; font-size: 14px;
+    font-weight: 500; color: var(--muted);
+  }
+  nav button:hover { background: var(--panel-low); color: var(--ink); }
+  nav button[aria-selected="true"] { background: var(--accent); color: #fff; font-weight: 600; border-color: var(--accent); }
+
   main { padding: 20px 24px 60px; max-width: 1200px; }
   section[hidden] { display: none; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; }
+
+  /* ---- surfaces -------------------------------------------------------- */
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-container); padding: 16px 18px; margin-bottom: 16px; }
   .row { display: flex; gap: 16px; flex-wrap: wrap; }
   .col { flex: 1 1 340px; min-width: 0; }
-  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; }
-  textarea { width: 100%; min-height: 110px; font: inherit; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
-  select, input[type=number], input[type=text] { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
-  button.primary { background: var(--accent); color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font: inherit; font-weight: 600; cursor: pointer; }
-  button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); padding: 7px 12px; border-radius: 8px; font: inherit; cursor: pointer; }
+
+  /* ---- controls -------------------------------------------------------- */
+  label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: var(--ink); }
+  /* uppercase only the short category labels, never content-bearing ones */
+  label[for="draft"], label[for="plan"], label[for="tenure"], label[for="scn"] {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+  }
+  textarea {
+    width: 100%; min-height: 110px; font: inherit; font-size: 14px; padding: 10px;
+    border: 1px solid var(--line-strong); border-radius: var(--r); resize: vertical;
+    background: var(--panel); color: var(--ink);
+  }
+  select, input[type=number], input[type=text] {
+    font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--line-strong);
+    border-radius: var(--r); background: var(--panel); color: var(--ink); height: 32px;
+  }
+  textarea:focus, select:focus, input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); outline: none; }
+  button.primary {
+    background: var(--accent); color: #fff; border: 1px solid var(--accent); padding: 8px 14px;
+    border-radius: var(--r); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; height: 36px;
+  }
+  button.primary:hover { background: var(--accent-2); }
+  button.secondary {
+    background: var(--panel); color: var(--ink); border: 1px solid var(--line-strong); padding: 7px 12px;
+    border-radius: var(--r); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; height: 32px;
+  }
+  button.secondary:hover { background: var(--bg); border-color: var(--meta); }
   button:disabled { opacity: .5; cursor: not-allowed; }
-  button:focus-visible, nav button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:focus-visible, nav button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent-2); outline-offset: 2px;
+  }
+
   .hint { color: var(--muted); font-size: 13px; }
-  .badge { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px; padding: 8px 14px; border-radius: 8px; }
-  .APPROVE { color: var(--ok); background: var(--ok-bg); }
-  .HOLD_FOR_REVIEW { color: var(--hold); background: var(--hold-bg); }
-  .BLOCK { color: var(--bad); background: var(--bad-bg); }
-  .chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; margin-right: 6px; white-space: nowrap; }
-  .banner { padding: 10px 14px; border-radius: 8px; margin: 10px 0; font-weight: 600; }
-  .banner.err { background: var(--bad-bg); color: var(--bad); }
-  .banner.warn { background: var(--hold-bg); color: var(--hold); }
-  .banner.info { background: var(--accent-bg); color: var(--accent); }
-  mark.bad { background: var(--mark); border-bottom: 2px solid var(--bad); padding: 0 2px; }
-  .draft { white-space: pre-wrap; background: #faf9f6; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  code { font-family: var(--mono); font-size: 12.5px; background: var(--panel-mid); border-radius: var(--r-code); padding: 1px 4px; }
+
+  /* ---- verdict badge --------------------------------------------------- */
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 18px;
+    padding: 10px 14px; border-radius: var(--r); border: 1px solid; border-left-width: 4px; letter-spacing: -0.01em;
+  }
+  .APPROVE { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); border-left-color: var(--ok-ink); }
+  .HOLD_FOR_REVIEW { color: var(--hold); background: var(--hold-bg); border-color: var(--hold-line); border-left-color: var(--hold-ink); }
+  .BLOCK { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); border-left-color: var(--bad-ink); }
+
+  /* status chips: rectilinear, never pill (design rule) */
+  .chip {
+    display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: var(--r);
+    margin-right: 6px; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.05em;
+    border: 1px solid var(--line-strong); background: var(--panel-low); color: var(--muted);
+  }
+  .chip.APPROVE { color: var(--ok); background: var(--ok-bg); border-color: var(--ok-line); }
+  .chip.HOLD_FOR_REVIEW { color: var(--hold); background: var(--hold-bg); border-color: var(--hold-line); }
+  .chip.BLOCK { color: var(--bad); background: var(--bad-bg); border-color: var(--bad-line); }
+
+  .banner { padding: 10px 14px; border-radius: var(--r); margin: 10px 0; font-weight: 600; font-size: 13.5px; border: 1px solid; border-left-width: 3px; }
+  .banner.err { background: var(--bad-bg); color: var(--bad); border-color: var(--bad-line); border-left-color: var(--bad-ink); }
+  .banner.warn { background: var(--hold-bg); color: var(--hold); border-color: var(--hold-line); border-left-color: var(--hold-ink); }
+  .banner.info { background: var(--accent-bg); color: var(--accent); border-color: var(--accent-line); border-left-color: var(--accent-2); }
+
+  /* flagged figure inside the draft */
+  mark.bad {
+    background: var(--mark-bg); color: var(--bad); border: 1px solid var(--bad-line);
+    border-radius: var(--r); padding: 0 4px; font-weight: 600;
+  }
+  .draft {
+    white-space: pre-wrap; background: var(--panel-low); border: 1px solid var(--line);
+    border-radius: var(--r); padding: 10px; font-size: 14px;
+  }
+
+  /* ---- key/value ------------------------------------------------------- */
   .kv { display: grid; grid-template-columns: 150px 1fr; gap: 4px 12px; font-size: 14px; }
-  .kv dt { color: var(--muted); }
+  .kv dt { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; padding-top: 2px; }
   .kv dd { margin: 0; }
-  .meter { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 3px 0; }
-  .meter .bar { flex: 0 0 160px; height: 8px; background: #eceae4; border-radius: 4px; position: relative; overflow: hidden; }
-  .meter .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
-  .meter .bar i { position: absolute; left: 60%; top: -2px; bottom: -2px; width: 2px; background: var(--bad); }
+
+  /* ---- meters ---------------------------------------------------------- */
+  .meter { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+  .meter .bar { flex: 0 0 160px; height: 8px; background: var(--panel-mid); border-radius: var(--r-code); position: relative; overflow: hidden; }
+  .meter .bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent-2); }
+  .meter .bar i { position: absolute; left: 60%; top: -2px; bottom: -2px; width: 2px; background: var(--bad-ink); }
+  .meter strong { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 12.5px; }
+
   ul.tight { margin: 4px 0; padding-left: 18px; }
+  ul.tight li { margin: 2px 0; }
+
+  /* ---- tables ---------------------------------------------------------- */
   table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { background: #f3f2ee; font-weight: 600; }
-  td.best { font-weight: 700; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th {
+    background: var(--panel-low); font-weight: 600; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.02em; border-bottom: 1px solid var(--line-strong);
+  }
+  tbody tr:hover { background: var(--bg); }
+  td.best { font-weight: 700; color: var(--ok); }
+  /* wide multi-column scoring tables: scroll rather than crush columns to one word per line */
+  .panel { overflow-x: auto; }
+  th, td { min-width: 104px; }
+  th:first-child, td:first-child { min-width: 148px; }
+  .surface th, .surface td { min-width: 0; }
+
   .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
-  .card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: #fff; }
-  .surface td { text-align: center; font-size: 12px; border: 1px solid #fff; }
-  .w0 { background: #dfe7fb; } .w1 { background: #fde9c8; } .w2 { background: #d9f0e2; } .w3 { background: #f3dde8; } .w4 { background: #e6e6e6; }
-  details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 8px; }
-  .muted { color: var(--muted); }
+  .card { border: 1px solid var(--line); border-radius: var(--r-container); padding: 12px; background: var(--panel); }
+
+  /* trade-off surface */
+  .surface td { text-align: center; font-size: 11px; border: 1px solid var(--panel); padding: 5px 4px; }
+  .surface th { font-family: var(--mono); font-size: 11px; }
+  .w0 { background: #dbe4fb; } .w1 { background: var(--hold-bg); } .w2 { background: var(--ok-bg); }
+  .w3 { background: var(--bad-bg); } .w4 { background: #e9edf5; }
+
+  details summary { cursor: pointer; color: var(--accent-2); font-size: 13px; margin-top: 8px; font-weight: 500; }
+  .muted { color: var(--meta); }
   .sr { position: absolute; left: -9999px; }
 </style>
 </head>
@@ -84,7 +197,8 @@
   </ol>
 </header>
 <nav role="tablist" aria-label="Views">
-  <button role="tab" aria-selected="true" aria-controls="tab-send" id="t-send">1 · Check &amp; send</button>
+  <button role="tab" aria-selected="true" aria-controls="tab-dispatch" id="t-dispatch">Dispatch decision (MOCK)</button>
+  <button role="tab" aria-selected="false" aria-controls="tab-send" id="t-send">1 · Check &amp; send</button>
   <button role="tab" aria-selected="false" aria-controls="tab-sim" id="t-sim">2 · Simulate samples</button>
   <button role="tab" aria-selected="false" aria-controls="tab-review" id="t-review">3 · Review queue &amp; audit</button>
   <button role="tab" aria-selected="false" aria-controls="tab-lab" id="t-lab">4 · Scenario lab: trade-offs</button>
@@ -92,10 +206,69 @@
 <main>
 <div id="globalBanner" role="status" aria-live="polite"></div>
 
+
+<!-- Dispatch decision (MOCK) ------------------------------------------------------------------>
+<section id="tab-dispatch" role="tabpanel" aria-labelledby="t-dispatch">
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:17px">What's going on</h2>
+    <div id="dispSituation" class="hint">Loading the scenario…</div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:17px">Stakeholder preferences (set before the AI recommends)</h2>
+    <p class="hint" style="margin-top:0">You say what matters first. The AI recommends afterwards, so it cannot pick the goal to suit its own answer.</p>
+    <div class="row" style="align-items:flex-end">
+      <div><label for="dispProfile">Whose priorities should decide</label>
+        <select id="dispProfile">
+          <option value="balanced" selected>Balanced</option>
+          <option value="safety_first">Safety first</option>
+          <option value="logistics_first">Schedule first</option>
+          <option value="commercial_first">Cost first</option>
+          <option value="custom">Custom</option>
+        </select></div>
+      <div id="dispWeightsNote" class="hint"></div>
+    </div>
+    <div id="dispCustom" hidden style="margin-top:10px"></div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin:0 0 8px;font-size:17px">The AI's initial recommendation</h2>
+    <div class="row" style="align-items:flex-end">
+      <div style="flex:1 1 320px"><label for="dispOption">What the AI proposes to do</label>
+        <select id="dispOption" style="width:100%"></select></div>
+      <div><button class="secondary" id="dispDemoBtn">Load demo example</button></div>
+    </div>
+    <div style="margin-top:10px">
+      <label for="dispRationale">The reason it gives, which a dispatcher would have to sign</label>
+      <textarea id="dispRationale" maxlength="4000" placeholder="Why this is safe and legal to do…"></textarea>
+    </div>
+    <div style="margin-top:10px"><button class="primary" id="dispBtn">Check dispatch release</button></div>
+    <p class="hint">The gate, not this page, makes the decision. Nothing is signed unless the gate approves it.</p>
+  </div>
+
+  <div id="dispResult" aria-live="polite"></div>
+</section>
+
 <!-- 1 · Check & send -------------------------------------------------------------------------->
-<section id="tab-send" role="tabpanel" aria-labelledby="t-send">
+<section id="tab-send" role="tabpanel" aria-labelledby="t-send" hidden>
   <div class="row">
     <div class="col panel">
+      <div class="panel" style="margin-bottom:10px">
+        <strong>Stakeholder preferences (set before checking)</strong>
+        <div style="margin-top:6px"><label for="prefProfile">Whose priorities should the recommendation favour?</label>
+          <select id="prefProfile">
+            <option value="balanced" selected>Balanced</option>
+            <option value="price_first_customer">Lower price first</option>
+            <option value="flexibility_first_customer">Flexibility first</option>
+            <option value="custom">Custom</option>
+          </select>
+          <button type="button" id="demoBtn" style="margin-left:8px">Load demo example</button></div>
+        <div id="prefCustom" style="display:none;margin-top:8px">
+          <div><label for="pw-customer_cost">Lower price</label> <input type="range" id="pw-customer_cost" min="0" max="100" value="33"> <span id="pwv-customer_cost">33%</span></div>
+          <div><label for="pw-customer_flexibility">Flexibility</label> <input type="range" id="pw-customer_flexibility" min="0" max="100" value="33"> <span id="pwv-customer_flexibility">33%</span></div>
+          <div><label for="pw-company_revenue">Company revenue</label> <input type="range" id="pw-company_revenue" min="0" max="100" value="34"> <span id="pwv-company_revenue">34%</span></div>
+        </div>
+      </div>
       <label for="draft">AI-drafted email to the customer</label>
       <textarea id="draft" maxlength="20000" placeholder="Paste or type the draft reply…"></textarea>
       <div class="hint"><span id="count">0</span> / 20,000 characters</div>
@@ -181,6 +354,10 @@ async function postJSON(url, body, onSlow) {
 function context() {
   const c = {}; if ($('plan').value) c.plan = $('plan').value;
   const t = $('tenure').value; if (t !== "" && !isNaN(+t)) c.customer_tenure_months = +t;
+  const pp = $('prefProfile').value;
+  if (pp === 'custom') {
+    c.preferences = { weights: { customer_cost: +$('pw-customer_cost').value / 100, customer_flexibility: +$('pw-customer_flexibility').value / 100, company_revenue: +$('pw-company_revenue').value / 100 }, label: "Custom" };
+  } else c.preferences = { profile: pp };
   return c;
 }
 
@@ -223,7 +400,31 @@ function fourTests(r) {
   return `<div class="ft" aria-label="Decision-grade tests for this decision">${cell('verified', '1 Verified')}${cell('calibrated', '2 Calibrated')}${cell('overseeable', '3 Overseeable')}${cell('auditable', '4 Auditable')}</div>`;
 }
 
-function renderDecision(el, r, text) {
+function issuesBlock(r) {
+  const is = r.issues || [];
+  const x = is.filter((i) => String(i.caught_by || '').includes('Ezio')).length;
+  const rows = is.map((i) => `<tr><td>${esc(i.issue)}</td><td>${esc(i.level)}</td><td>${esc(i.expected)}</td><td>${esc(i.source)}</td><td>${esc(i.caught_by)}</td></tr>`).join("");
+  return `<h3 style="font-size:15px;margin:14px 0 4px">What Ezio caught vs what HoldPoint caught</h3>
+    <p style="margin:0 0 6px">Ezio caught ${x} of ${is.length} issues - a basic gate that only trusts Ezio's overall rating would have: <strong>${esc((r.baseline || {}).decision || 'unknown')}</strong></p>
+    ${rows ? `<table><thead><tr><th>Issue</th><th>Level</th><th>Expected</th><th>Source</th><th>Caught by</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="muted">No issues were found.</p>'}`;
+}
+
+function recBlock(r) {
+  const rc = r.recommendation; if (!rc) return "";
+  const pr = rc.preferences || {};
+  const fr = (rc.frontier || []).map((o) => `<tr><td>${o.name === rc.choice ? '★ ' : ''}${esc(o.label)}</td><td>$${Number(o.cost_pm).toFixed(2)}</td><td>${esc(o.commit_months)}</td><td>${esc(o.refund_days)}</td><td>${Math.round(Number(o.score) * 100)}</td></tr>`).join("");
+  const ex = (rc.excluded || []).map((e) => `<li>${esc(e)}</li>`).join("");
+  return `<h3 style="font-size:15px;margin:14px 0 4px">HoldPoint's recommendation</h3>
+    <p class="hint" style="margin:0 0 6px">Pareto-optimal under "${esc(pr.label || pr.profile || 'your preferences')}". Pareto-optimal means "no other allowed option is better on every count".</p>
+    <p style="margin:0"><strong>${esc(rc.choice_label)}</strong></p>
+    <p style="margin:4px 0"><strong>Why:</strong> ${esc(rc.why)}</p>
+    <p style="margin:4px 0"><strong>Trade-off:</strong> ${esc(rc.tradeoff)}</p>
+    ${fr ? `<table><thead><tr><th>Option</th><th>$/month</th><th>Commitment (months)</th><th>Refund window (days)</th><th>Score</th></tr></thead><tbody>${fr}</tbody></table>` : ''}
+    ${ex ? `<h4 style="margin:10px 0 4px">Ruled out by policy, or beaten on every count</h4><ul class="tight">${ex}</ul>` : ''}
+    ${rc.suggested_reply ? `<p style="margin:10px 0 4px"><strong>Suggested reply</strong></p><div class="draft">${esc(rc.suggested_reply)}</div>` : ''}`;
+}
+
+function renderDecision(el, r, text, isFollowUp) {
   const findings = r.findings || [];
   const flist = findings.map((f) => `<li><span class="chip ${esc(f.level)}">${esc(SHORT[f.level] || f.level)}</span>${esc(f.message)}${f.expected ? `<br><span class="hint">Company data: ${esc(f.expected)}${f.source ? ` · ${esc(f.source)}` : ''}</span>` : ''}</li>`).join("");
   const cov = r.coverage || {};
@@ -231,12 +432,15 @@ function renderDecision(el, r, text) {
   const agrees = base.decision === r.decision;
   el.innerHTML = `
     <div class="badge ${esc(r.decision)}" role="status">${LABEL[r.decision] || esc(r.decision)} · ${r.action_executed ? 'email sent (mock send_email ran)' : 'not sent'}</div>
+    ${(r.decision === 'HOLD_FOR_REVIEW' || r.decision === 'BLOCK') ? '<span class="chip HOLD_FOR_REVIEW">Escalated to support lead</span> <span class="hint">Escalated means "sent to a person to decide".</span>' : ''}
     ${fourTests(r)}
     <p><strong>Why:</strong> ${esc(r.reason)}</p>
     <p><strong>What happens:</strong> ${esc(r.consequence)}</p>
     ${r.ezio_status && r.ezio_status !== 'ok' ? `<div class="banner warn">Ezio ${esc(r.ezio_status)}: the gate failed closed on what it couldn't check.</div>` : ''}
-    <h3 style="font-size:15px;margin:14px 0 4px">The draft, with problem figures marked</h3>
+    <h3 style="font-size:15px;margin:14px 0 4px">The AI's first draft</h3>
     <div class="draft">${highlight(text, findings)}</div>
+    ${issuesBlock(r)}
+    ${recBlock(r)}
     ${flist ? `<h3 style="font-size:15px;margin:14px 0 4px">Problems found</h3><ul class="tight">${flist}</ul>` : ''}
     <h3 style="font-size:15px;margin:14px 0 4px">Coverage</h3>
     <p style="margin:0"><strong>Matched company data:</strong> ${esc((cov.checked || []).join('; ') || (findings.length ? 'nothing' : 'no pricing or policy figures to check'))}</p>
@@ -246,10 +450,36 @@ function renderDecision(el, r, text) {
     <p class="hint">Starter gate (Ezio's overall tier only) would say <strong>${esc(SHORT[base.decision] || '?')}</strong>${agrees ? ': same call.' : ': a different call.'}</p>
     ${welfareCard(r.welfare)}
     <details><summary>Full evidence (what the audit log records)</summary><ul class="tight">${(r.evidence || []).map((e) => `<li>${esc(e)}</li>`).join("")}</ul></details>
-    ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (tab 3).</p>' : ''}`;
+    ${r.decision === 'HOLD_FOR_REVIEW' ? '<p class="hint">Added to the review queue (tab 3).</p>' : ''}
+    ${(!isFollowUp && r.recommendation && r.recommendation.suggested_reply) ? '<p><button class="primary" id="recBtn">Check &amp; send recommended reply</button></p><div id="result2"></div>' : ''}`;
+  const rb = el.querySelector('#recBtn');
+  if (rb && !isFollowUp) rb.addEventListener('click', async () => {
+    const reply = r.recommendation.suggested_reply;
+    const out = el.querySelector('#result2');
+    rb.disabled = true;
+    out.innerHTML = '<p class="muted">Checking the recommended reply…</p>';
+    try {
+      const ctx = Object.assign({}, context(), { replaces_decision_id: r.decision_id });
+      const r2 = await postJSON('/decide', { text: reply, persona: PERSONA, context: ctx });
+      renderDecision(out, r2, reply, true);
+    } catch (e) { out.innerHTML = `<div class="banner err">${esc(e.message)}</div>`; }
+    finally { rb.disabled = false; }
+  });
 }
 
 // ---------- 1 · check & send
+function syncPrefs() {
+  $('prefCustom').style.display = $('prefProfile').value === 'custom' ? '' : 'none';
+  ['customer_cost', 'customer_flexibility', 'company_revenue'].forEach((k) => { $('pwv-' + k).textContent = $('pw-' + k).value + '%'; });
+}
+$('prefProfile').addEventListener('change', syncPrefs);
+['customer_cost', 'customer_flexibility', 'company_revenue'].forEach((k) => $('pw-' + k).addEventListener('input', syncPrefs));
+$('demoBtn').addEventListener('click', () => {
+  $('draft').value = 'AMAZING news!!! As a loyal customer you get 30% off Pro, and if you switch to annual billing you can cancel any time for a full refund.';
+  $('plan').value = 'Pro'; $('tenure').value = 18; $('prefProfile').value = 'flexibility_first_customer';
+  syncPrefs();
+  $('draft').dispatchEvent(new Event('input'));
+});
 $('draft').addEventListener('input', () => { $('count').textContent = $('draft').value.length.toLocaleString(); });
 $('sendBtn').addEventListener('click', async () => {
   const text = $('draft').value;
@@ -345,7 +575,27 @@ $('queue').addEventListener('click', async (ev) => {
 async function loadAudit() {
   try {
     const res = await fetch('/api/audit'); const d = await res.json();
-    const rows = (d.audit || []).slice(0, 25).map((a) => `<tr><td>${esc(a.timestamp)}</td><td><span class="chip ${esc(a.decision)}">${esc(SHORT[a.decision])}</span></td><td>${esc((a.input || '').slice(0, 90))}</td><td>${esc((a.reason || '').slice(0, 120))}</td></tr>`).join("");
+    const allAudit = d.audit || [];
+    const dash = '<span class="muted">-</span>';
+    const pct = (p) => { const w = (p && p.weights) || {}; return Object.keys(w).map((k) => `${esc((typeof DISP_LABEL !== 'undefined' && DISP_LABEL[k]) || k)} ${Math.round(Number(w[k]) * 100)}%`).join(', '); };
+    const detailOf = (a) => {
+      const c = a.context || {}, p = a.preferences, b = a.baseline, rec = a.recommendation;
+      const iss = Array.isArray(a.issues) ? a.issues : [];
+      const replacedBy = allAudit.filter((o) => o !== a && o.context && o.context.replaces_decision_id && o.context.replaces_decision_id === a.decision_id).map((o) => o.decision_id);
+      const links = [c.replaces_decision_id ? `Replaces decision ${esc(c.replaces_decision_id)}.` : '', replacedBy.length ? `Replaced by ${replacedBy.map(esc).join(', ')}.` : ''].filter(Boolean).join(' ');
+      const prefs = p ? `<div class="banner info"><strong>Preferences used:</strong> ${esc(p.label || p.profile || 'unnamed profile')}. Weights: ${pct(p) || 'none recorded'}.${p.stated_text ? `<br><span class="hint">${esc(p.stated_text)}</span>` : (p.why ? ` <span class="hint">${esc(p.why)}</span>` : '')}</div>` : `<p class="hint">Preferences used: ${dash}</p>`;
+      const issRows = iss.map((i) => `<tr><td>${esc(i.issue)}</td><td><span class="chip ${esc(i.level === 'BLOCK' ? 'BLOCK' : (i.level === 'APPROVE' ? 'APPROVE' : 'HOLD_FOR_REVIEW'))}">${esc(i.level)}</span></td><td>${esc(i.expected)}</td><td>${esc(i.source)}</td><td>${esc(i.caught_by)}</td></tr>`).join("");
+      const issTable = iss.length ? `<table><thead><tr><th>Issue</th><th>Level</th><th>Expected</th><th>Source</th><th>Caught by</th></tr></thead><tbody>${issRows}</tbody></table>` : `<p class="hint">Issues: ${dash}</p>`;
+      const base = b ? `<p><strong>What a basic gate would have done:</strong> a basic gate that only trusts Ezio's overall rating would have chosen <span class="chip ${esc(b.decision)}">${esc(SHORT[b.decision] || b.decision)}</span>. ${esc(b.reason)}</p>` : `<p class="hint">Starter gate comparison: ${dash}</p>`;
+      let recHtml = `<p class="hint">Recommendation: ${dash}</p>`;
+      if (rec) {
+        const txt = (rec.suggested_release && rec.suggested_release.rationale) || rec.suggested_reply || '';
+        recHtml = `<p><strong>Recommendation:</strong> ${esc(rec.choice_label || rec.choice)}</p><p>${esc(rec.why)}</p><p class="hint">Tradeoff: ${esc(rec.tradeoff)}</p>${txt ? `<div class="draft">${esc(txt)}</div>` : ''}`;
+      }
+      return `${links ? `<p>${links}</p>` : ''}${prefs}${issTable}${base}${recHtml}`;
+    };
+    const rows = allAudit.slice(0, 25).map((a) => `<tr><td>${esc(a.timestamp)}</td><td>${esc(a.persona)}</td><td><span class="chip ${esc(a.decision)}">${esc(SHORT[a.decision])}</span></td><td>${esc((a.input || '').slice(0, 90))}</td><td>${esc((a.reason || '').slice(0, 120))}</td></tr><tr><td colspan=5><details><summary>Show the full reasoning for this decision</summary>${detailOf(a)}</details></td></tr>`).join("");
+    const rowsOld = (d.audit || []).slice(0, 25).map((a) => `<tr><td>${esc(a.timestamp)}</td><td><span class="chip ${esc(a.decision)}">${esc(SHORT[a.decision])}</span></td><td>${esc((a.input || '').slice(0, 90))}</td><td>${esc((a.reason || '').slice(0, 120))}</td></tr>`).join("");
     const R = d.reviews || [];
     const rel = R.filter((v) => v.verdict === 'release'), fast = rel.filter((v) => v.fast_release);
     const secs = R.map((v) => v.seconds_since_gate_decision).filter((x) => x != null).sort((a, b) => a - b);
@@ -353,7 +603,7 @@ async function loadAudit() {
     const stats = R.length ? `<p><strong>Oversight:</strong> ${rel.length} released, ${R.length - rel.length} rejected; median ${med}s from hold to human decision; <strong>${fast.length}</strong> fast release(s) under 15s (possible rubber stamps).</p>` : '';
     const revs = R.slice(0, 10).map((v) => `<li>${esc(v.timestamp)}: <strong>${esc(v.verdict)}</strong>${v.fast_release ? ' <span class="chip HOLD_FOR_REVIEW">fast release</span>' : ''} after ${esc(v.seconds_since_gate_decision)}s (${esc(v.outcome)}): “${esc(v.reason)}”</li>`).join("");
     $('audit').innerHTML = `<p>${(d.actions || []).length} mock emails actually sent (actions.log), one per APPROVE.</p>
-      <table><thead><tr><th>When (UTC)</th><th>Decision</th><th>Draft</th><th>Reason</th></tr></thead><tbody>${rows || '<tr><td colspan=4>No decisions yet.</td></tr>'}</tbody></table>
+      <table><thead><tr><th>When (UTC)</th><th>Persona</th><th>Decision</th><th>Draft</th><th>Reason</th></tr></thead><tbody>${rows || '<tr><td colspan=5>No decisions yet.</td></tr>'}</tbody></table>
       ${revs ? `<h3 style="font-size:15px">Reviewer decisions</h3>${stats}<ul class="tight">${revs}</ul>` : ''}`;
   } catch (e) { $('audit').innerHTML = `<div class="banner err">Audit log unavailable: ${esc(e.message)}</div>`; }
 }
@@ -428,6 +678,188 @@ function renderLab(L) {
 }
 
 loadSamples(); loadScenarios(); renderQueue();
+
+// ---------- Dispatch decision (MOCK) -------------------------------------------------------
+var DISP = null;                       // the scenario as the API describes it
+var DISP_LAST_PREFS = null;            // the preferences used for the last check
+
+var GLOSS = {
+  pareto: 'no other allowed option is better on every count',
+  rule: 'a hard limit that is never traded away',
+  escalated: 'sent to a person to decide',
+  starter: 'a basic gate that only trusts Ezio\'s overall rating'
+};
+function note(t) { return '<span class="hint">(' + esc(t) + ')</span>'; }
+
+function dispPrefs() {
+  var prof = $('dispProfile').value;
+  if (prof !== 'custom') return { profile: prof };
+  var w = {};
+  (DISP && DISP.objectives ? DISP.objectives : []).forEach(function (o) {
+    var el = $('dw-' + o.key);
+    if (el) w[o.key] = (+el.value) / 100;
+  });
+  return { weights: w, label: 'Custom' };
+}
+
+function dispWeightsLine() {
+  var p = dispPrefs(), out = [];
+  if (p.weights) {
+    var tot = 0;
+    for (var k in p.weights) tot += p.weights[k];
+    (DISP.objectives || []).forEach(function (o) {
+      var v = p.weights[o.key] || 0;
+      out.push(esc(DISP_LABEL[o.key] || o.label) + ' ' + Math.round(tot ? (v / tot) * 100 : 0) + '%');
+    });
+  } else if (DISP && DISP.profiles && DISP.profiles[p.profile]) {
+    var w = DISP.profiles[p.profile].weights || {};
+    (DISP.objectives || []).forEach(function (o) {
+      out.push(esc(DISP_LABEL[o.key] || o.label) + ' ' + Math.round((w[o.key] || 0) * 100) + '%');
+    });
+  }
+  $('dispWeightsNote').innerHTML = out.length ? 'Weights: ' + out.join(' · ') : '';
+}
+
+var DISP_LABEL = { safety_margin_min: 'Safety margin', delay_min: 'Delay', cost_usd: 'Cost',
+                   customer_cost: 'Lower price', customer_flexibility: 'Flexibility', company_revenue: 'Company revenue' };
+
+async function loadDispatch() {
+  if (DISP) return;
+  try {
+    DISP = await postJSON('/api/scenario', { id: 'aviation_dispatch' });
+    var sc = DISP.scenario || {};
+    $('dispSituation').innerHTML =
+      '<p style="margin:0 0 6px"><strong>The situation.</strong> ' + esc(sc.situation || '') + '</p>' +
+      '<p style="margin:0 0 6px"><strong>What could go wrong.</strong> A reason can sound confident and still be wrong. If nobody checks the numbers against the flight\'s own figures, a release that breaks a hard limit gets signed.</p>' +
+      '<p style="margin:0 0 6px"><strong>What HoldPoint does.</strong> It checks every figure in the reason, applies the hard limits first, and only then compares what is left against the priorities you set. It never signs anything the limits rule out.</p>' +
+      (sc.disclaimer ? '<div class="banner info" style="margin-top:8px">' + esc(sc.disclaimer) + '</div>' : '');
+    $('dispOption').innerHTML = (DISP.options || []).map(function (o) {
+      return '<option value="' + esc(o.key) + '">' + esc(o.label) + '</option>';
+    }).join('');
+    $('dispCustom').innerHTML = (DISP.objectives || []).map(function (o) {
+      return '<div class="meter"><span style="width:110px">' + esc(DISP_LABEL[o.key] || o.label) + '</span>' +
+        '<input type="range" min="0" max="100" value="33" id="dw-' + esc(o.key) + '" style="flex:0 0 180px">' +
+        '<strong id="dwv-' + esc(o.key) + '">33%</strong></div>';
+    }).join('');
+    (DISP.objectives || []).forEach(function (o) {
+      var el = $('dw-' + o.key);
+      if (el) el.addEventListener('input', function () { $('dwv-' + o.key).textContent = el.value + '%'; dispWeightsLine(); });
+    });
+    dispWeightsLine();
+  } catch (e) {
+    $('dispSituation').innerHTML = '<div class="banner err">Could not load the scenario: ' + esc(e.message) + '</div>';
+  }
+}
+
+function dispIssues(d) {
+  var iss = d.issues || [];
+  var n = iss.length;
+  var ez = iss.filter(function (i) { return String(i.caught_by || '').indexOf('Ezio') > -1; }).length;
+  var base = d.baseline || {};
+  var head = '<p style="margin:10px 0 4px"><strong>Ezio caught ' + ez + ' of ' + n + ' issue' + (n === 1 ? '' : 's') +
+    '.</strong> A basic gate that only trusts Ezio\'s overall rating would have said ' +
+    '<span class="chip ' + esc(base.decision || '') + '">' + esc(SHORT[base.decision] || base.decision || '?') + '</span>' +
+    (base.reason ? ' <span class="hint">' + esc(base.reason) + '</span>' : '') + '</p>';
+  if (!n) return head + '<p class="hint">No issues were found in this reason.</p>';
+  var rows = iss.map(function (i) {
+    return '<tr><td>' + esc(i.issue) + '</td><td><span class="chip ' + esc(i.level) + '">' + esc(SHORT[i.level] || i.level) + '</span></td>' +
+      '<td>' + esc(i.expected || '—') + '</td><td>' + esc(i.source || '—') + '</td><td>' + esc(i.caught_by) + '</td></tr>';
+  }).join('');
+  return head + '<table><thead><tr><th>Issue</th><th>Level</th><th>Expected</th><th>Source</th><th>Caught by</th></tr></thead><tbody>' + rows + '</tbody></table>';
+}
+
+function dispRec(d) {
+  var r = d.recommendation || {};
+  if (!r.choice) return '';
+  var p = r.preferences || {};
+  var pw = p.weights || {};
+  var wl = Object.keys(pw).map(function (k) { return esc(DISP_LABEL[k] || k) + ' ' + Math.round(Number(pw[k]) * 100) + '%'; }).join(' · ');
+  var fr = (r.frontier || []).map(function (f) {
+    var m = f.metrics || {};
+    return '<tr><td' + (f.key === r.choice ? ' class="best"' : '') + '>' + (f.key === r.choice ? '★ ' : '') + esc(f.label) + '</td>' +
+      '<td>' + esc(m.safety_margin_min) + '</td><td>' + esc(m.delay_min) + '</td><td>' + esc(m.cost_usd) + '</td>' +
+      '<td>' + esc(f.score) + '</td></tr>';
+  }).join('');
+  var ex = (r.excluded || []).map(function (e) {
+    return '<li><strong>' + esc(e.label) + ':</strong> ' + esc(e.reason) + '</li>';
+  }).join('');
+  var sr = r.suggested_release || {};
+  return '<h3 style="font-size:15px;margin:16px 0 4px">HoldPoint\'s recommendation, best under ' + esc(p.label || '') + '</h3>' +
+    '<p class="hint" style="margin:0 0 6px">Best here means Pareto-optimal: ' + esc(GLOSS.pareto) + '. Weights: ' + (wl || '—') + '.</p>' +
+    (p.stated_text ? '<p class="hint" style="margin:0 0 6px">' + esc(p.stated_text) + '</p>' : '') +
+    '<p style="margin:4px 0"><strong>' + esc(r.choice_label) + '</strong></p>' +
+    '<p style="margin:4px 0">' + esc(r.why) + '</p>' +
+    (r.tradeoff ? '<p style="margin:4px 0"><strong>The trade-off.</strong> ' + esc(r.tradeoff) + '</p>' : '') +
+    '<table><thead><tr><th>Option</th><th>Safety margin (minutes)</th><th>Delay (minutes)</th><th>Cost (USD)</th><th>Score</th></tr></thead><tbody>' + fr + '</tbody></table>' +
+    (ex ? '<h3 style="font-size:15px;margin:14px 0 4px">Ruled out before any trade-off</h3><ul class="tight">' + ex + '</ul>' : '') +
+    (sr.rationale ? '<h3 style="font-size:15px;margin:14px 0 4px">The reason HoldPoint suggests instead</h3><div class="draft">' + esc(sr.rationale) + '</div>' +
+      '<p style="margin-top:10px"><button class="primary" id="dispRecBtn">Check &amp; sign recommended release</button></p><div id="dispResult2"></div>' : '');
+}
+
+function renderDispatch(el, d, isFollowUp) {
+  var esc_ = esc;
+  el.innerHTML = '<div class="panel">' +
+    '<div class="badge ' + esc_(d.decision) + '" role="status">' + (LABEL[d.decision] || esc_(d.decision)) + ' · ' +
+      (d.action_executed ? 'release signed (mock)' : 'not signed') + '</div>' +
+    (d.decision !== 'APPROVE' ? ' <span class="chip HOLD_FOR_REVIEW">Escalated to dispatcher</span> ' + note(GLOSS.escalated) : '') +
+    fourTests(d) +
+    '<p><strong>Why.</strong> ' + esc_(d.reason) + '</p>' +
+    '<p><strong>What happens.</strong> ' + esc_(d.consequence) + '</p>' +
+    '<h3 style="font-size:15px;margin:16px 0 4px">The AI\'s initial recommendation</h3>' +
+    '<p style="margin:2px 0"><strong>' + esc_(d.option_label) + '</strong></p>' +
+    '<div class="draft">' + esc_(d.rationale) + '</div>' +
+    '<h3 style="font-size:15px;margin:16px 0 4px">What Ezio caught, and what HoldPoint caught</h3>' +
+    dispIssues(d) +
+    (isFollowUp ? '' : dispRec(d)) +
+    '</div>';
+  var rb = el.querySelector('#dispRecBtn');
+  if (rb) {
+    rb.addEventListener('click', async function () {
+      rb.disabled = true;
+      var out = el.querySelector('#dispResult2');
+      out.innerHTML = '<p class="muted">Checking the recommended release…</p>';
+      try {
+        var sr = d.recommendation.suggested_release;
+        var d2 = await postJSON('/api/dispatch', {
+          option: sr.option, rationale: sr.rationale,
+          preferences: DISP_LAST_PREFS || dispPrefs(),
+          context: { replaces_decision_id: d.decision_id }
+        });
+        renderDispatch(out, d2, true);
+      } catch (e) {
+        out.innerHTML = '<div class="banner err">Gate error: ' + esc(e.message) + '. Nothing was signed.</div>';
+      } finally { rb.disabled = false; }
+    });
+  }
+}
+
+$('dispProfile').addEventListener('change', function () {
+  $('dispCustom').hidden = $('dispProfile').value !== 'custom';
+  dispWeightsLine();
+});
+$('dispDemoBtn').addEventListener('click', function () {
+  $('dispOption').value = 'depart_planned';
+  $('dispProfile').value = 'balanced';
+  $('dispCustom').hidden = true;
+  $('dispRationale').value = "WE'RE GOOD TO GO!!! The planned 14,000 lb meets all fuel requirements, the reserve only needs to be 30 minutes, and the crew has plenty of duty time.";
+  dispWeightsLine();
+});
+$('dispBtn').addEventListener('click', async function () {
+  var option = $('dispOption').value, rationale = $('dispRationale').value;
+  if (!option) { banner('err', 'Pick what the AI proposes to do first.'); return; }
+  if (!rationale.trim()) { banner('err', 'Type the reason a dispatcher would have to sign.'); return; }
+  banner('', ''); $('dispBtn').disabled = true;
+  $('dispResult').innerHTML = '<div class="panel"><p class="muted">Checking the numbers and the hard limits (usually 2-6 seconds)…</p></div>';
+  try {
+    DISP_LAST_PREFS = dispPrefs();
+    var d = await postJSON('/api/dispatch', { option: option, rationale: rationale, preferences: DISP_LAST_PREFS, context: {} });
+    renderDispatch($('dispResult'), d, false);
+  } catch (e) {
+    $('dispResult').innerHTML = '<div class="banner err">Gate error: ' + esc(e.message) + '. Nothing was signed.</div>';
+  } finally { $('dispBtn').disabled = false; }
+});
+loadDispatch();
+
 </script>
 </body>
 </html>
