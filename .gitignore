@@ -7,4 +7,9 @@ __pycache__/
 *.log
 *.jsonl
 runs/
-results/*.practice.*
+# Judge output holds the hidden test inputs: never commit anything from results/.
+# (This replaces the narrower results/*.practice.* rule, which left results/HoldPoint.json exposed.)
+results/
+# Guard against an unsealed test set ever appearing beside the sealed one.
+final/*
+!final/final_set.sealed
