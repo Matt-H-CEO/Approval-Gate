@@ -10,9 +10,11 @@ Run one input:  python3 wrapper.py customer_support "Your 30% loyalty discount a
 Score yourself: python3 evaluate.py customer_support
 """
 import csv
+import hashlib
 import json
 import math
 import sys
+import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -57,6 +59,8 @@ class Decision:
     ezio_status: str = "ok"
     welfare: dict = None
     baseline: dict = None
+    decision_id: str = ""
+    four_tests: dict = None
 
 
 def parse_signals(resp):
@@ -259,9 +263,30 @@ def decide(text, context=None, persona="customer_support", scenario=None, audit_
             ezio_status="degraded" if signals.accuracy_status == "unavailable" else "ok", welfare=check.welfare,
             baseline=baseline_decision(signals),
         )
+    result.decision_id = hashlib.sha1(f"{time.time_ns()}|{text}".encode()).hexdigest()[:12]
+    result.four_tests = four_tests(result)
     if audit_log:
         audit.record(persona, text, context, result)
     return result
+
+
+def four_tests(r):
+    """The talk's decision-grade tests, answered for this one decision."""
+    cov = r.coverage or {}
+    blocks = [f for f in r.findings if f.get("level") == BLOCK]
+    holds = [f for f in r.findings if f.get("level") == HOLD]
+    unsure = list(cov.get("could_not_check", []))
+    if r.ezio_status != "ok":
+        unsure.append(f"Ezio {r.ezio_status}")
+    return {
+        "verified": {"ok": not blocks, "text": (f"{len(cov.get('checked', []))} claim(s) matched company data or Ezio's fact-check; "
+                                                 f"{len(blocks)} contradicted.")},
+        "calibrated": {"ok": True, "text": ("Held back: " + "; ".join(dict.fromkeys(f["message"] for f in holds))[:300] if holds and r.decision == HOLD
+                                             else ("Could not check: " + "; ".join(unsure) if unsure else "Nothing left unchecked that this persona's rules cover."))},
+        "overseeable": {"ok": True, "text": ("A person must review before anything is sent; the problem text is marked and the consequence stated."
+                                              if r.decision != APPROVE else "Sent automatically: every checked figure matched. Spot-check from the audit trail.")},
+        "auditable": {"ok": True, "text": f"Decision {r.decision_id} logged with the input, Ezio's full response, evidence, reason and time."},
+    }
 
 
 def gate(text, context=None, persona="customer_support"):

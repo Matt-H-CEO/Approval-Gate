@@ -15,6 +15,9 @@ PERSONAS_DIR = Path(__file__).resolve().parent.parent / "personas"
 
 PERSONAS = {"customer_support", "paralegal", "financial_analyst"}
 LOG_DIR = Path(os.getenv("GATE_LOG_DIR") or Path(__file__).parent)
+FAST_SECONDS = 15  # a release this soon after the gate held the draft is marked as a possible rubber stamp
+GENERIC = {"ok", "okay", "fine", "approved", "approve", "lgtm", "looks good", "looks fine", "good", "yes", "send", "send it",
+           "release", "checked", "all good", "no issues", "go ahead", "sure"}
 
 
 def tail_jsonl(path, limit=40):
@@ -65,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/health":
             return self.send_json(200, {"status": "ok"})
         if route == "/api/audit":
-            rows = [{k: r.get(k) for k in ("timestamp", "persona", "input", "context", "decision", "reason", "ezio_status")}
+            rows = [{k: r.get(k) for k in ("decision_id", "timestamp", "persona", "input", "context", "decision", "reason", "ezio_status")}
                     for r in tail_jsonl(LOG_DIR / "audit_log.jsonl")]
             return self.send_json(200, {"audit": rows, "reviews": tail_jsonl(LOG_DIR / "review_log.jsonl"),
                                         "actions": tail_jsonl(LOG_DIR / "actions.log")})
@@ -131,18 +134,38 @@ class Handler(BaseHTTPRequestHandler):
 
 
     def review(self):
-        """A person releases or rejects a HELD draft, with a reason. Logged apart from actions.log, which must
-        equal the gate's APPROVE decisions; a release is recorded as a human-released send, not a gate approval."""
+        """A person releases or rejects a HELD draft. Anti-rubber-stamp rules are enforced here, not only in the page:
+        the decision must exist in the audit log and be a HOLD; every flagged problem must be acknowledged; the reason
+        must be specific; the time between the gate's decision and the release is recorded, and very fast releases are
+        marked. Logged to review_log.jsonl, never actions.log (which must equal the gate's APPROVE decisions)."""
         try:
             p = self.read_json()
-            verdict, reason, text = p.get("verdict"), str(p.get("reason", "")).strip(), str(p.get("text", ""))
-            if verdict not in ("release", "reject") or not reason or not text or p.get("decision") == "BLOCK":
-                raise ValueError("verdict must be release or reject, with a reason; BLOCKed drafts cannot be released")
-        except (ValueError, UnicodeDecodeError, OSError) as e:
+            verdict, reason = p.get("verdict"), " ".join(str(p.get("reason", "")).split())
+            did = str(p.get("decision_id", ""))
+            if verdict not in ("release", "reject"):
+                raise ValueError("verdict must be release or reject")
+            row = next((r for r in tail_jsonl(LOG_DIR / "audit_log.jsonl", 5000) if r.get("decision_id") == did), None)
+            if row is None:
+                raise ValueError("unknown decision_id: only decisions the gate logged can be reviewed")
+            if row.get("decision") != "HOLD_FOR_REVIEW":
+                raise ValueError("only HOLD_FOR_REVIEW decisions can be released; a BLOCK needs an edited draft")
+            flags = row.get("findings") or []
+            acked = p.get("acknowledged") or []
+            if verdict == "release" and sorted(set(int(i) for i in acked)) != list(range(len(flags))):
+                raise ValueError(f"acknowledge each of the {len(flags)} flagged problem(s) before releasing")
+            if len(reason) < 15 or reason.lower().strip(".! ") in GENERIC:
+                raise ValueError("give a specific reason (what you checked and against what); 'ok' or 'looks good' is not a review")
+        except (ValueError, TypeError, UnicodeDecodeError, OSError) as e:
             return self.send_json(400, {"error": str(e)})
-        entry = {"timestamp": datetime.now(timezone.utc).isoformat(timespec="seconds"), "verdict": verdict,
-                 "reason": reason[:500], "reviewer": str(p.get("reviewer") or "support lead")[:80], "input": text[:2000],
-                 "gate_decision": p.get("decision"), "gate_reason": str(p.get("gate_reason", ""))[:500],
+        now = datetime.now(timezone.utc)
+        try:
+            dwell = round((now - datetime.fromisoformat(row["timestamp"])).total_seconds())
+        except (KeyError, ValueError):
+            dwell = None
+        entry = {"timestamp": now.isoformat(timespec="seconds"), "decision_id": did, "verdict": verdict, "reason": reason[:500],
+                 "reviewer": str(p.get("reviewer") or "support lead")[:80], "input": row.get("input", "")[:2000],
+                 "gate_reason": row.get("reason", "")[:500], "flags_acknowledged": len(flags) if verdict == "release" else 0,
+                 "seconds_since_gate_decision": dwell, "fast_release": verdict == "release" and dwell is not None and dwell < FAST_SECONDS,
                  "outcome": "sent (mock), human-released" if verdict == "release" else "not sent, rejected by reviewer"}
         with (LOG_DIR / "review_log.jsonl").open("a") as f:
             f.write(json.dumps(entry) + "\n")

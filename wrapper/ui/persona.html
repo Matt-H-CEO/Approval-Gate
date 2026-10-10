@@ -15,6 +15,15 @@
   header { padding: 18px 24px 0; }
   header h1 { margin: 0; font-size: 20px; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  ol.tests { list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 0; margin: 12px 0 0; }
+  ol.tests li { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; }
+  ol.tests li strong { display: block; font-size: 13.5px; color: var(--accent); }
+  .ft { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+  .ft div { border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 12.5px; background: #fbfaf7; }
+  .ft div strong { display: block; font-size: 13px; }
+  .ft .no { border-color: var(--bad); background: var(--bad-bg); }
+  .stamp { border: 2px dashed var(--hold); background: var(--hold-bg); padding: 10px 12px; border-radius: 8px; margin: 8px 0; font-size: 13.5px; }
+  @media (max-width: 800px) { ol.tests, .ft { grid-template-columns: 1fr 1fr; } }
   nav { display: flex; gap: 4px; padding: 14px 24px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   nav button { border: 1px solid var(--line); border-bottom: none; background: #ecebe6; padding: 8px 14px; border-radius: 8px 8px 0 0; cursor: pointer; font: inherit; color: var(--ink); }
   nav button[aria-selected="true"] { background: var(--panel); font-weight: 600; }
@@ -67,6 +76,12 @@
 <header>
   <h1>Reply Gate: check an AI-drafted reply before it reaches the customer</h1>
   <p>Lumen Cloud support (fictional). Every draft is checked against the price sheet and policies, scored by Ezio, and sent only when the gate says APPROVE. Runs fully offline on this laptop.</p>
+  <ol class="tests" aria-label="Decision-grade tests">
+    <li><strong>1 Verified</strong><span>Every figure checked against company data and Ezio's fact-check, not just trusted.</span></li>
+    <li><strong>2 Calibrated</strong><span>Says what it couldn't check, and holds back instead of guessing.</span></li>
+    <li><strong>3 Overseeable</strong><span>A person can catch the mistake: problems are marked, and a release needs a real check, not a click.</span></li>
+    <li><strong>4 Auditable</strong><span>Every decision and every human release is logged with its evidence and timing.</span></li>
+  </ol>
 </header>
 <nav role="tablist" aria-label="Views">
   <button role="tab" aria-selected="true" aria-controls="tab-send" id="t-send">1 · Check &amp; send</button>
@@ -202,6 +217,12 @@ function welfareCard(w) {
     <ul class="tight">${profs}</ul>`;
 }
 
+function fourTests(r) {
+  const t = r.four_tests; if (!t) return '';
+  const cell = (k, name) => `<div class="${t[k].ok ? '' : 'no'}"><strong>${t[k].ok ? '✓' : '✕'} ${name}</strong>${esc(t[k].text)}</div>`;
+  return `<div class="ft" aria-label="Decision-grade tests for this decision">${cell('verified', '1 Verified')}${cell('calibrated', '2 Calibrated')}${cell('overseeable', '3 Overseeable')}${cell('auditable', '4 Auditable')}</div>`;
+}
+
 function renderDecision(el, r, text) {
   const findings = r.findings || [];
   const flist = findings.map((f) => `<li><span class="chip ${esc(f.level)}">${esc(SHORT[f.level] || f.level)}</span>${esc(f.message)}${f.expected ? `<br><span class="hint">Company data: ${esc(f.expected)}${f.source ? ` · ${esc(f.source)}` : ''}</span>` : ''}</li>`).join("");
@@ -210,6 +231,7 @@ function renderDecision(el, r, text) {
   const agrees = base.decision === r.decision;
   el.innerHTML = `
     <div class="badge ${esc(r.decision)}" role="status">${LABEL[r.decision] || esc(r.decision)} · ${r.action_executed ? 'email sent (mock send_email ran)' : 'not sent'}</div>
+    ${fourTests(r)}
     <p><strong>Why:</strong> ${esc(r.reason)}</p>
     <p><strong>What happens:</strong> ${esc(r.consequence)}</p>
     ${r.ezio_status && r.ezio_status !== 'ok' ? `<div class="banner warn">Ezio ${esc(r.ezio_status)}: the gate failed closed on what it couldn't check.</div>` : ''}
@@ -280,31 +302,59 @@ $('simBtn').addEventListener('click', async () => {
 // ---------- 3 · review & audit
 function renderQueue() {
   if (!held.length) { $('queue').innerHTML = '<p class="muted">Nothing held yet.</p>'; return; }
-  $('queue').innerHTML = held.map((h, i) => `<div class="card" style="margin-bottom:10px">
-    <div class="draft">${highlight(h.text, h.r.findings)}</div>
-    <p><strong>Held because:</strong> ${esc(h.r.reason)}</p>
-    ${h.done ? `<div class="banner info">${esc(h.done)}</div>` : `
-    <label for="rr-${i}">Your reason (required, logged)</label><input type="text" id="rr-${i}" style="width:100%" placeholder="e.g. Checked with the product manager; the feature date is confirmed">
-    <div style="margin-top:8px;display:flex;gap:8px"><button class="primary" data-act="release" data-i="${i}">Release and send</button><button class="secondary" data-act="reject" data-i="${i}">Reject: don't send</button></div>`}
-  </div>`).join("");
+  $('queue').innerHTML = held.map((h, i) => {
+    const flags = h.r.findings || [];
+    const checks = flags.map((f, j) => `<label style="font-weight:400;display:flex;gap:8px;align-items:flex-start;margin:4px 0">
+        <input type="checkbox" data-q="${i}" data-f="${j}"><span>I checked <strong>${esc(f.stated || f.span || 'this')}</strong> myself${f.source ? ` against <em>${esc(f.source)}</em>` : ''}: ${esc(f.message)}</span></label>`).join("");
+    return `<div class="card" style="margin-bottom:10px">
+    <div class="draft">${highlight(h.text, flags)}</div>
+    <p><strong>The gate held this because:</strong> ${esc(h.r.reason)}</p>
+    ${h.done ? `<div class="banner ${h.fast ? 'warn' : 'info'}">${esc(h.done)}</div>` : `
+    <div class="stamp"><strong>Don't rubber-stamp.</strong> Releasing sends this email to the customer exactly as written. Check each flagged item yourself, then say what you checked. Releases within ${15} seconds of the gate's decision are marked in the audit log.</div>
+    ${checks || '<p class="hint">No individual flags: the hold came from Ezio\'s signals or an outage. Read the whole draft.</p>'}
+    <label for="rr-${i}">What did you check, and against what? (required, logged)</label>
+    <input type="text" id="rr-${i}" style="width:100%" placeholder="e.g. Confirmed with the product manager that the export feature ships on Nov 3">
+    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="primary" data-act="release" data-i="${i}" disabled>Release and send</button><button class="secondary" data-act="reject" data-i="${i}">Reject: don't send</button>
+    <span class="hint" id="rq-${i}">Release unlocks once every flag is ticked and the reason is specific.</span></div>`}
+  </div>`; }).join("");
 }
+function canRelease(i) {
+  const boxes = [...document.querySelectorAll(`#queue input[data-q="${i}"]`)];
+  const reason = ($(`rr-${i}`)?.value || '').trim();
+  const generic = /^(ok(ay)?|fine|approved?|lgtm|looks (good|fine)|good|yes|send( it)?|release|checked|all good|no issues|go ahead|sure)[.! ]*$/i.test(reason);
+  return boxes.every((b) => b.checked) && reason.length >= 15 && !generic;
+}
+$('queue').addEventListener('input', (ev) => {
+  const i = ev.target.dataset.q ?? (ev.target.id.startsWith('rr-') ? ev.target.id.slice(3) : null);
+  if (i == null) return;
+  const btn = document.querySelector(`#queue button[data-act="release"][data-i="${i}"]`);
+  if (btn) btn.disabled = !canRelease(i);
+});
 $('queue').addEventListener('click', async (ev) => {
   const b = ev.target.closest('button[data-act]'); if (!b) return;
   const i = +b.dataset.i, h = held[i], reason = $(`rr-${i}`).value.trim();
   if (!reason) { banner('warn', 'A release or rejection needs a reason; it goes in the audit log.'); return; }
+  const acknowledged = [...document.querySelectorAll(`#queue input[data-q="${i}"]:checked`)].map((x) => +x.dataset.f);
   try {
-    const r = await postJSON('/api/review', { verdict: b.dataset.act, reason, text: h.text, decision: h.r.decision, gate_reason: h.r.reason });
-    h.done = `${r.outcome} · logged ${r.timestamp}`; renderQueue(); loadAudit();
-  } catch (e) { banner('err', `Review not saved: ${e.message}`); }
+    const r = await postJSON('/api/review', { verdict: b.dataset.act, reason, decision_id: h.r.decision_id, acknowledged });
+    h.fast = r.fast_release;
+    h.done = `${r.outcome} · ${r.seconds_since_gate_decision}s after the gate's decision${r.fast_release ? ' · marked as a fast release in the audit log' : ''} · ${r.timestamp}`;
+    renderQueue(); loadAudit();
+  } catch (e) { banner('err', `Not saved: ${e.message}`); }
 });
 async function loadAudit() {
   try {
     const res = await fetch('/api/audit'); const d = await res.json();
     const rows = (d.audit || []).slice(0, 25).map((a) => `<tr><td>${esc(a.timestamp)}</td><td><span class="chip ${esc(a.decision)}">${esc(SHORT[a.decision])}</span></td><td>${esc((a.input || '').slice(0, 90))}</td><td>${esc((a.reason || '').slice(0, 120))}</td></tr>`).join("");
-    const revs = (d.reviews || []).slice(0, 10).map((v) => `<li>${esc(v.timestamp)}: <strong>${esc(v.verdict)}</strong> (${esc(v.outcome)}): “${esc(v.reason)}”</li>`).join("");
+    const R = d.reviews || [];
+    const rel = R.filter((v) => v.verdict === 'release'), fast = rel.filter((v) => v.fast_release);
+    const secs = R.map((v) => v.seconds_since_gate_decision).filter((x) => x != null).sort((a, b) => a - b);
+    const med = secs.length ? secs[Math.floor(secs.length / 2)] : null;
+    const stats = R.length ? `<p><strong>Oversight:</strong> ${rel.length} released, ${R.length - rel.length} rejected; median ${med}s from hold to human decision; <strong>${fast.length}</strong> fast release(s) under 15s (possible rubber stamps).</p>` : '';
+    const revs = R.slice(0, 10).map((v) => `<li>${esc(v.timestamp)}: <strong>${esc(v.verdict)}</strong>${v.fast_release ? ' <span class="chip HOLD_FOR_REVIEW">fast release</span>' : ''} after ${esc(v.seconds_since_gate_decision)}s (${esc(v.outcome)}): “${esc(v.reason)}”</li>`).join("");
     $('audit').innerHTML = `<p>${(d.actions || []).length} mock emails actually sent (actions.log), one per APPROVE.</p>
       <table><thead><tr><th>When (UTC)</th><th>Decision</th><th>Draft</th><th>Reason</th></tr></thead><tbody>${rows || '<tr><td colspan=4>No decisions yet.</td></tr>'}</tbody></table>
-      ${revs ? `<h3 style="font-size:15px">Reviewer decisions</h3><ul class="tight">${revs}</ul>` : ''}`;
+      ${revs ? `<h3 style="font-size:15px">Reviewer decisions</h3>${stats}<ul class="tight">${revs}</ul>` : ''}`;
   } catch (e) { $('audit').innerHTML = `<div class="banner err">Audit log unavailable: ${esc(e.message)}</div>`; }
 }
 $('auditBtn').addEventListener('click', loadAudit);
