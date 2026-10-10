@@ -393,3 +393,109 @@ def run(sid, preferences=None):
     return {"scenario": {k: scn.get(k) for k in ("id", "title", "kind", "situation", "disclaimer", "action")},
             "objectives": [{"key": k, "label": v} for k, v in welfare.PREFS["objectives"].items()],
             "options": over["options"], "profiles": over["profiles"], "surface": over["surface"], "drafts": drafts}
+
+
+# ---------------------------------------------------------------- live dispatch decisions (audited)
+
+DISPATCH_LOG = "dispatch_actions.log"  # separate from actions.log, which must equal the email gate's APPROVE decisions
+
+
+def _profiles_with(scn, preferences):
+    profiles = {k: dict(v) for k, v in scn["profiles"].items()}
+    key = scn.get("default_profile")
+    if isinstance(preferences, dict) and isinstance(preferences.get("weights"), dict):
+        profiles["custom"] = {"label": str(preferences.get("label") or "Custom weights"), "weights": preferences["weights"],
+                              "why": "Entered up front on the page."}
+        key = "custom"
+    elif isinstance(preferences, dict) and preferences.get("profile") in profiles:
+        key = preferences["profile"]
+    elif isinstance(preferences, str) and preferences in profiles:
+        key = preferences
+    return profiles, key
+
+
+def _release_text(scn, row):
+    f, o, m = _facts(scn), scn["options"][row["key"]], row["metrics"]
+    used = f["flight_time_min"] + o["delay_min"]
+    label = o["label"][0].lower() + o["label"][1:]
+    return (f"Recommend: {label}. That puts {o['fuel_lb']:,} lb on board, {m['safety_margin_min']:.0f} minutes above the "
+            f"{f['required_fuel_lb']:,} lb legal minimum including the 45-minute reserve. "
+            f"Crew duty use is {used:g} of {f['crew_duty_remaining_min']:g} minutes.")
+
+
+def dispatch_recommendation(scn, preferences):
+    profiles, key = _profiles_with(scn, preferences)
+    table, prof = option_table(scn, profiles)
+    p = prof[key]
+    best = next(r for r in table if r["key"] == p["best"])
+    front = [r for r in table if r["feasible"] and r.get("pareto_frontier")]
+    runner = max((r for r in front if r is not best), key=lambda r: p["utility"][r["key"]], default=None)
+    w = p["weights"]
+    excluded = [{"label": r["label"], "reason": "breaks a rule: " + "; ".join(g["label"] for g in r["guardrails"] if not g["ok"])}
+                for r in table if not r["feasible"]]
+    excluded += [{"label": r["label"], "reason": f"dominated by {next(x['label'] for x in table if x['key'] == r['dominated_by'])}"}
+                 for r in table if r["feasible"] and r.get("dominated_by")]
+    trade = ""
+    if runner:
+        bm, rm = best["metrics"], runner["metrics"]
+        trade = (f"Next best: {runner['label']} ({rm['safety_margin_min']:.0f} min margin, +{rm['delay_min']:.0f} min, ${rm['cost_usd']:,.0f}) "
+                 f"vs the choice ({bm['safety_margin_min']:.0f} min margin, +{bm['delay_min']:.0f} min, ${bm['cost_usd']:,.0f}).")
+    return {
+        "preferences": {"profile": key, "label": p["label"], "weights": w, "why": profiles[key].get("why", ""),
+                        "stated": bool(preferences)},
+        "choice": best["key"], "choice_label": best["label"],
+        "why": (f"Under '{p['label']}' (safety {w['safety_margin_min']:.0%}, logistics {w['delay_min']:.0%}, commercial {w['cost_usd']:.0%}), "
+                f"{best['label']} scores {p['utility'][best['key']] * 100:.0f}/100: the best Pareto-optimal option that breaks no rule."),
+        "tradeoff": trade,
+        "frontier": [{"key": r["key"], "label": r["label"], "metrics": r["metrics"], "score": p["utility"].get(r["key"])} for r in front],
+        "excluded": excluded,
+        "suggested_release": {"option": best["key"], "rationale": _release_text(scn, best)},
+    }
+
+
+def decide_dispatch(option, rationale, preferences=None, context=None, audit_log=True):
+    """Gate an AI dispatch recommendation (option + rationale) the same way the email gate works, and audit it."""
+    import hashlib
+    import time
+    from datetime import datetime, timezone
+    import audit
+    scn = load("aviation_dispatch")
+    if option not in scn["options"]:
+        raise ValueError("unknown option")
+    check = check_rationale(scn, option, rationale)
+    try:
+        response = analyze(rationale)
+        signals = core.parse_signals(response)
+        led, _ = core.apply_policy(signals, check, core.POLICY)
+        level, status = led.level, "ok"
+        reasons = led.decisive()
+    except EzioError as e:
+        response, signals, status = {"error": str(e), "response": e.response}, None, "unavailable"
+        level = BLOCK if any(f.level == BLOCK for f in check.findings) else core.POLICY["on_ezio_failure"]
+        reasons = [f.message for f in check.findings if f.level == level] or [f"Ezio unavailable ({e}); held for the dispatcher."]
+    cov = {"checked": check.verified, "could_not_check": check.unchecked + (["Ezio unavailable"] if signals is None else [])}
+    r = core.Decision(level, " ".join(dict.fromkeys(reasons)) or "Every figure matched the flight data and no rule is broken.",
+                      [f"[{f.level}] {f.message}" for f in check.findings] + [core._coverage_line(cov)], response,
+                      findings=[f.as_dict() for f in check.findings], coverage=cov, ezio_status=status,
+                      baseline=core.baseline_decision(signals))
+    r.consequence = ("Release signed (mock): the flight departs as proposed." if level == APPROVE else
+                     "Not signed. Escalated to the dispatcher: nothing departs until a person decides.")
+    r.recommendation = dispatch_recommendation(scn, preferences)
+    r.preferences = r.recommendation["preferences"]
+    r.ezio_flags, r.issues = core.issue_ledger(r, check)
+    for i in r.issues:  # HoldPoint's overconfidence rule overlaps Ezio's tone/bias/agreement flags
+        if i["caught_by"] == "HoldPoint only" and "Overconfident" in i["issue"] and any(k in " ".join(r.ezio_flags) for k in ("Tone", "Bias", "Agreement")):
+            i["caught_by"] = "Ezio + HoldPoint"
+    if any(i["caught_by"] == "Ezio + HoldPoint" for i in r.issues):
+        r.issues = [i for i in r.issues if not (i["caught_by"] == "Ezio" and i["source"] == "Ezio dimensions")]
+    r.decision_id = hashlib.sha1(f"{time.time_ns()}|{rationale}".encode()).hexdigest()[:12]
+    r.four_tests = core.four_tests(r)
+    executed = level == APPROVE
+    if audit_log:
+        ctx = dict(context or {}, option=option, scenario="aviation_dispatch (MOCK)")
+        audit.record("aviation_dispatch", rationale, ctx, r)
+        if executed:
+            with (audit.LOG.parent / DISPATCH_LOG).open("a") as fh:
+                fh.write(json.dumps({"time": datetime.now(timezone.utc).isoformat(timespec="seconds"), "action": "sign_dispatch_release",
+                                     "option": option, "decision_id": r.decision_id}) + "\n")
+    return r, executed

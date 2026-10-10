@@ -72,7 +72,8 @@ class Handler(BaseHTTPRequestHandler):
                                            "preferences", "issues", "ezio_flags", "recommendation", "baseline", "findings")}
                     for r in tail_jsonl(LOG_DIR / "audit_log.jsonl")]
             return self.send_json(200, {"audit": rows, "reviews": tail_jsonl(LOG_DIR / "review_log.jsonl"),
-                                        "actions": tail_jsonl(LOG_DIR / "actions.log")})
+                                        "actions": tail_jsonl(LOG_DIR / "actions.log"),
+                                        "dispatch_actions": tail_jsonl(LOG_DIR / scenario.DISPATCH_LOG)})
         if route == "/api/scenarios":
             return self.send_json(200, {"scenarios": scenario.list_scenarios()})
         if route == "/api/samples":
@@ -105,6 +106,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.review()
         if self.path == "/api/scenario":
             return self.run_scenario()
+        if self.path == "/api/dispatch":
+            return self.dispatch()
         if self.path != "/decide":
             return self.send_json(404, {"error": "Unknown endpoint"})
         self.connection.settimeout(10)
@@ -171,6 +174,21 @@ class Handler(BaseHTTPRequestHandler):
         with (LOG_DIR / "review_log.jsonl").open("a") as f:
             f.write(json.dumps(entry) + "\n")
         return self.send_json(200, entry)
+
+    def dispatch(self):
+        """Aviation dispatch (MOCK): gate an AI recommendation (option + rationale) under stated stakeholder preferences."""
+        try:
+            p = self.read_json()
+            option, rationale = str(p.get("option", "")), p.get("rationale")
+            if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 20000:
+                raise ValueError("rationale must be a non-empty string")
+            ctx = p.get("context") if isinstance(p.get("context"), dict) else {}
+            r, executed = scenario.decide_dispatch(option, rationale, p.get("preferences"), ctx)
+        except (ValueError, UnicodeDecodeError, OSError) as e:
+            return self.send_json(400, {"error": str(e)})
+        except Exception as e:  # noqa: BLE001
+            return self.send_json(500, {"error": f"Dispatch gate failed: {type(e).__name__}"})
+        return self.send_json(200, {**asdict(r), "action_executed": executed, "action": "sign_dispatch_release"})
 
     def run_scenario(self):
         try:
